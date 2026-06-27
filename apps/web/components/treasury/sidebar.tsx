@@ -55,7 +55,7 @@ export function Sidebar() {
         <div className="rounded-lg bg-zinc-900 p-3">
           <p className="text-xs font-medium text-zinc-400">Network</p>
           <p className="text-sm font-semibold text-emerald-400">
-            {process.env.NEXT_PUBLIC_CHAIN ?? "base-sepolia"}
+            {process.env.NEXT_PUBLIC_CHAIN ?? "sepolia"}
           </p>
         </div>
       </div>
