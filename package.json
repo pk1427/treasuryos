@@ -1,0 +1,17 @@
+{
+  "name": "treasuryos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DeFi treasury risk intelligence with onchain risk attestations",
+  "scripts": {
+    "dev": "npm run dev --workspace=web",
+    "build": "npm run build --workspace=web",
+    "start": "npm run start --workspace=web",
+    "lint": "npm run lint --workspace=web",
+    "db:generate": "npm run db:generate --workspace=web",
+    "db:migrate": "npm run db:migrate --workspace=web",
+    "db:push": "npm run db:push --workspace=web",
+    "db:seed": "npm run db:seed --workspace=web"
+  },
+  "workspaces": ["apps/*", "packages/*"]
+}
