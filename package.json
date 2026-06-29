@@ -2,6 +2,9 @@
   "name": "treasuryos",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "description": "DeFi treasury risk intelligence with onchain risk attestations",
   "scripts": {
     "dev": "npm run dev --workspace=web",
@@ -13,5 +16,12 @@
     "db:push": "npm run db:push --workspace=web",
     "db:seed": "npm run db:seed --workspace=web"
   },
-  "workspaces": ["apps/*", "packages/*"]
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "dependencies": {
+    "@tailwindcss/postcss": "^4.3.1",
+    "tailwindcss": "^3.4.19"
+  }
 }
