@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Sidebar } from "@/components/treasury/sidebar";
+import { Navbar } from "@/components/treasury/navbar";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,8 +16,8 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full dark antialiased">
       <body className="min-h-full bg-zinc-950 text-zinc-100">
-        <Sidebar />
-        <main className="ml-64 min-h-screen p-8">{children}</main>
+        <Navbar />
+        <main className="min-h-screen">{children}</main>
       </body>
     </html>
   );
