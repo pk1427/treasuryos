@@ -142,6 +142,7 @@ Current adapter support:
 | Adapter | Network | Positions |
 |---------|---------|-----------|
 | Uniswap V3 | Ethereum Sepolia | LP NFTs via NonfungiblePositionManager |
+| Aave V3 | Ethereum Sepolia | Supplied balances for priced reserves |
 
 Protocol deployment addresses live in `packages/indexer/src/protocols`. If protocol reads fail, TreasuryOS falls back to V1 wallet scanning without inventing positions.
 

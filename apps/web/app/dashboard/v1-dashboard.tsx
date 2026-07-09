@@ -35,6 +35,7 @@ const LOADING_STEPS = [
 ];
 const FLOW_STEPS = ["Scan", "Score", "Simulate", "Publish", "Verified"] as const;
 const REPORT_REQUEST_TIMEOUT_MS = 60_000;
+const DISPLAY_PROTOCOLS = ["Wallet", "Uniswap", "Aave"] as const;
 
 type ReportResponse = {
   report: RiskReport;
@@ -83,14 +84,23 @@ export function V1Dashboard() {
       ]);
     }
 
-    return [...groups.entries()].map(([protocol, positions]) => ({
-      protocol,
-      positions,
-      totalValueUsd: positions.reduce(
-        (sum, position) => sum + position.amountUsd,
-        0
-      ),
-    }));
+    const protocols = new Set<string>([
+      ...DISPLAY_PROTOCOLS,
+      ...groups.keys(),
+    ]);
+
+    return [...protocols].map((protocol) => {
+      const positions = groups.get(protocol) ?? [];
+
+      return {
+        protocol,
+        positions,
+        totalValueUsd: positions.reduce(
+          (sum, position) => sum + position.amountUsd,
+          0
+        ),
+      };
+    });
   }, [report]);
 
   async function generateReport() {
@@ -336,28 +346,34 @@ export function V1Dashboard() {
                             {usd(group.totalValueUsd)}
                           </p>
                         </div>
-                        <div className="grid gap-3 md:grid-cols-2">
-                          {group.positions.map((position) => (
-                            <div
-                              key={`${position.protocol}-${position.asset}-${position.type ?? "position"}`}
-                              className="rounded-xl border border-white/10 bg-black/20 p-4 transition hover:-translate-y-1 hover:border-cyan-400/30 hover:bg-white/[0.04]"
-                            >
-                              <div className="flex items-start justify-between gap-4">
-                                <div>
-                                  <p className="text-lg font-semibold text-zinc-100">
-                                    {position.asset}
-                                  </p>
-                                  <p className="mt-1 text-xs uppercase text-zinc-500">
-                                    {positionTypeLabel(position.type)}
+                        {group.positions.length > 0 ? (
+                          <div className="grid gap-3 md:grid-cols-2">
+                            {group.positions.map((position) => (
+                              <div
+                                key={`${position.protocol}-${position.asset}-${position.type ?? "position"}`}
+                                className="rounded-xl border border-white/10 bg-black/20 p-4 transition hover:-translate-y-1 hover:border-cyan-400/30 hover:bg-white/[0.04]"
+                              >
+                                <div className="flex items-start justify-between gap-4">
+                                  <div>
+                                    <p className="text-lg font-semibold text-zinc-100">
+                                      {position.asset}
+                                    </p>
+                                    <p className="mt-1 text-xs uppercase text-zinc-500">
+                                      {positionTypeLabel(position.type)}
+                                    </p>
+                                  </div>
+                                  <p className="text-right font-mono text-lg font-bold text-zinc-100">
+                                    {usd(position.amountUsd)}
                                   </p>
                                 </div>
-                                <p className="text-right font-mono text-lg font-bold text-zinc-100">
-                                  {usd(position.amountUsd)}
-                                </p>
                               </div>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="rounded-xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-zinc-500">
+                            No {group.protocol} positions found.
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -775,9 +791,11 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 
 function ProtocolBadge({ protocol }: { protocol: string }) {
   const key = protocol.toLowerCase();
-  const className = key.includes("uniswap")
-    ? "border-pink-400/30 bg-pink-500/10 text-pink-300"
-    : "border-violet-400/30 bg-violet-500/10 text-violet-300";
+  const className = key.includes("aave")
+    ? "border-sky-400/30 bg-sky-500/10 text-sky-300"
+    : key.includes("uniswap")
+      ? "border-pink-400/30 bg-pink-500/10 text-pink-300"
+      : "border-violet-400/30 bg-violet-500/10 text-violet-300";
 
   return (
     <span

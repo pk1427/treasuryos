@@ -5,6 +5,8 @@ export { publicClient } from "./client";
 export {
   scanProtocolPositions,
   TREASURY_PROTOCOL_ADAPTERS,
+  aaveV3Adapter,
+  AAVE_V3,
   uniswapV3Adapter,
   UNISWAP_V3,
   type TreasuryProtocolAdapter,

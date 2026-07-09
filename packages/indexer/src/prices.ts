@@ -2,6 +2,7 @@ const TOKEN_PRICES_USD: Record<string, number> = {
   ETH: 3500,
   WETH: 3500,
   USDC: 1,
+  USDT: 1,
   DAI: 1,
 };
 

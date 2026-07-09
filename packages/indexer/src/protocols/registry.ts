@@ -1,5 +1,6 @@
 import type { Address } from "viem";
 import type { TreasuryPosition } from "@treasuryos/shared";
+import { aaveV3Adapter } from "./aave-v3";
 import { uniswapV3Adapter } from "./uniswap-v3";
 import type { TreasuryProtocolAdapter } from "./adapter";
 
@@ -7,6 +8,7 @@ const PROTOCOL_SCAN_TIMEOUT_MS = 45_000;
 
 export const TREASURY_PROTOCOL_ADAPTERS: TreasuryProtocolAdapter[] = [
   uniswapV3Adapter,
+  aaveV3Adapter,
 ];
 
 export async function scanProtocolPositions(
