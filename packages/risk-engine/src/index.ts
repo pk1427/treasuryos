@@ -3,6 +3,16 @@ import type { RiskRating, RiskScore, TreasurySnapshot } from "@treasuryos/shared
 const LIQUID_ASSETS = new Set(["USDC", "USDT", "DAI", "ETH", "WETH"]);
 
 export function scoreTreasuryRisk(snapshot: TreasurySnapshot): RiskScore {
+  if (snapshot.totalValueUsd === 0) {
+    return {
+      rating: "N/A",
+      concentration: 0,
+      counterparty: 0,
+      liquidity: 0,
+      composite: 0,
+    };
+  }
+
   const concentration = scoreConcentration(snapshot);
   const counterparty = scoreCounterparty(snapshot);
   const liquidity = scoreLiquidity(snapshot);

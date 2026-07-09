@@ -3,6 +3,7 @@ import {
   publishAttestation,
   simulateAttestation,
 } from "@treasuryos/attestation";
+import { indexPublishedAttestationTransaction } from "@/server/services/attestation-indexer-service";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
@@ -30,6 +31,9 @@ export async function POST(request: Request) {
         treasuryAddress,
         reportHash: reportHash as `0x${string}`,
       });
+      if (result.transactionHash) {
+        await persistPublishedAttestation(result.transactionHash);
+      }
       return NextResponse.json(result);
     }
 
@@ -42,6 +46,17 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Attestation failed" },
       { status: 502 }
+    );
+  }
+}
+
+async function persistPublishedAttestation(txHash: string) {
+  try {
+    await indexPublishedAttestationTransaction(txHash);
+  } catch (error) {
+    console.warn(
+      "Attestation publish succeeded, but event indexing failed.",
+      error
     );
   }
 }

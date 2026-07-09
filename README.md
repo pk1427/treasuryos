@@ -4,12 +4,12 @@
 
 > The operating system for protocol treasuries. Analyze, decide, and execute treasury actions autonomously.
 
-TreasuryOS continuously monitors protocol treasury health on Base, detects risks like low runway and asset concentration, generates AI-powered recommendations, and executes treasury operations through KeeperHub while maintaining a complete audit trail.
+TreasuryOS scans Sepolia treasury addresses, scores detected wallet assets, stress tests portfolios, and publishes immutable risk attestations through KeeperHub.
 
 ## Architecture
 
 ```
-Base Treasury Wallet
+Sepolia Treasury Wallet
         ↓
 Blockchain Service (Viem)
         ↓
@@ -29,7 +29,7 @@ Audit Trail (PostgreSQL)
 | Frontend | Next.js 15, TypeScript, Tailwind, shadcn/ui |
 | Backend | Next.js Route Handlers, Server Actions |
 | Database | PostgreSQL, Drizzle ORM |
-| Blockchain | Base, Viem |
+| Blockchain | Sepolia, Viem |
 | AI | OpenAI, LangChain |
 | Execution | KeeperHub MCP / API |
 
@@ -47,16 +47,16 @@ cp apps/web/.env.example apps/web/.env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) and click **Launch Dashboard**, then **Connect Demo Treasury** to run the full demo flow.
+Open [http://localhost:3000](http://localhost:3000), click **Launch Dashboard**, and scan a Sepolia treasury address.
 
-## Demo Flow
+## V1 Flow
 
-1. Connect demo treasury wallet on Base
-2. TreasuryOS analyzes $1M treasury (90% USDC, 8.3 month runway)
-3. Detects concentration, runway, and idle capital risks
-4. AI CFO generates recommendations
-5. Click **Execute** — KeeperHub simulates and executes transfer
-6. Audit trail updates on Executions page
+1. Enter a Sepolia treasury address
+2. TreasuryOS reads native ETH and supported ERC20 balances
+3. Risk engine scores concentration, counterparty, and liquidity exposure
+4. Stress simulator runs scenarios for detected assets
+5. Risk report is hashed
+6. KeeperHub simulates and publishes the attestation onchain
 
 ## Project Structure
 
@@ -75,7 +75,7 @@ apps/web/
 │   ├── decisions/      # Recommendation cards
 │   └── treasury/       # Sidebar, connect wallet
 ├── lib/
-│   ├── blockchain/     # Viem + Base integration
+│   ├── blockchain/     # Viem integration
 │   ├── analytics/      # Runway, concentration, risk scoring
 │   ├── ai/             # AI CFO agent
 │   ├── keeperhub/      # Simulation + execution
@@ -91,11 +91,10 @@ apps/web/
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `DATABASE_URL` | No | PostgreSQL connection (demo mode works without) |
-| `BASE_RPC_URL` | No | Base RPC endpoint |
+| `DATABASE_URL` | No | PostgreSQL connection |
+| `SEPOLIA_RPC_URL` | Yes | Sepolia RPC endpoint |
 | `OPENAI_API_KEY` | No | Enables AI-generated explanations |
 | `KEEPERHUB_API_KEY` | No | Enables live KeeperHub execution |
-| `USE_DEMO_DATA` | No | Force demo treasury data |
 
 ## Database Setup (Optional)
 

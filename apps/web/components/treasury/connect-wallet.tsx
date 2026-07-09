@@ -50,12 +50,12 @@ export function ConnectWallet() {
           ) : (
             <>
               <Wallet className="h-4 w-4" />
-              Connect Demo Treasury
+              Open Treasury Dashboard
             </>
           )}
         </Button>
         <p className="text-center text-xs text-zinc-500">
-          Demo wallet: {truncateAddress(DEMO_TREASURY_ADDRESS)}
+          Default address: {truncateAddress(DEMO_TREASURY_ADDRESS)}
         </p>
       </CardContent>
     </Card>

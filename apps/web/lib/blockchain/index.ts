@@ -13,8 +13,6 @@ import {
   DEMO_RESERVE_ADDRESS,
   DEMO_TREASURY_ADDRESS,
   TOKEN_METADATA,
-  USDC_ADDRESS,
-  WETH_ADDRESS,
 } from "./constants";
 
 const erc20BalanceOfAbi = [
@@ -55,7 +53,7 @@ async function fetchTokenPrices(): Promise<Record<string, number>> {
     const data = (await res.json()) as Record<string, { usd: number }>;
     const prices: Record<string, number> = { ...FALLBACK_PRICES };
 
-    for (const [addr, meta] of Object.entries(TOKEN_METADATA)) {
+    for (const meta of Object.values(TOKEN_METADATA)) {
       if (meta.coingeckoId && data[meta.coingeckoId]) {
         prices[meta.symbol] = data[meta.coingeckoId].usd;
       }
@@ -64,30 +62,6 @@ async function fetchTokenPrices(): Promise<Record<string, number>> {
   } catch {
     return FALLBACK_PRICES;
   }
-}
-
-function getDemoBalances(): TokenBalance[] {
-  const idleDate = new Date();
-  idleDate.setDate(idleDate.getDate() - 45);
-
-  return [
-    {
-      tokenAddress: USDC_ADDRESS,
-      symbol: "USDC",
-      amount: "900000",
-      decimals: 6,
-      usdValue: 900_000,
-      lastMovedAt: idleDate,
-    },
-    {
-      tokenAddress: WETH_ADDRESS,
-      symbol: "ETH",
-      amount: "29.41",
-      decimals: 18,
-      usdValue: 100_000,
-      lastMovedAt: new Date(),
-    },
-  ];
 }
 
 async function getOnchainBalance(
@@ -124,13 +98,6 @@ async function getOnchainBalance(
 export async function getBalances(
   walletAddress: string
 ): Promise<TokenBalance[]> {
-  if (
-    walletAddress.toLowerCase() === DEMO_TREASURY_ADDRESS.toLowerCase() ||
-    process.env.USE_DEMO_DATA === "true"
-  ) {
-    return getDemoBalances();
-  }
-
   const prices = await fetchTokenPrices();
   const address = walletAddress as Address;
   const balances: TokenBalance[] = [];
@@ -153,10 +120,7 @@ export async function getTokenPrices(): Promise<Record<string, number>> {
   return fetchTokenPrices();
 }
 
-export async function getTransactions(
-  walletAddress: string,
-  limit = 10
-): Promise<
+export async function getTransactions(): Promise<
   Array<{
     hash: Hash;
     value: string;
@@ -165,21 +129,6 @@ export async function getTransactions(
     from: string;
   }>
 > {
-  if (
-    walletAddress.toLowerCase() === DEMO_TREASURY_ADDRESS.toLowerCase() ||
-    process.env.USE_DEMO_DATA === "true"
-  ) {
-    return [
-      {
-        hash: "0xabc123def4567890123456789012345678901234567890123456789012345678" as Hash,
-        value: "50000",
-        timestamp: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-        to: "0xPayroll00000000000000000000000000000001",
-        from: walletAddress,
-      },
-    ];
-  }
-
   // Placeholder for block explorer API integration
   return [];
 }
