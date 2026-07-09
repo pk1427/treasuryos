@@ -1,8 +1,8 @@
 # TreasuryOS
 
-**AI CFO for Onchain Protocols**
+**Treasury Risk Intelligence with Onchain Attestations**
 
-> The operating system for protocol treasuries. Analyze, decide, and execute treasury actions autonomously.
+> Read-only treasury scanning, risk scoring, stress testing, and verifiable KeeperHub attestations.
 
 TreasuryOS scans Sepolia treasury addresses, scores detected wallet assets, stress tests portfolios, and publishes immutable risk attestations through KeeperHub.
 
@@ -15,22 +15,22 @@ Blockchain Service (Viem)
         ↓
 Treasury Analytics Engine
         ↓
-AI CFO Agent
+Risk Report + Hash
         ↓
-KeeperHub Execution Engine
+KeeperHub Attestation Publish
         ↓
-Audit Trail (PostgreSQL)
+Attestation Indexer + PostgreSQL
 ```
 
 ## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 15, TypeScript, Tailwind, shadcn/ui |
+| Frontend | Next.js, TypeScript, Tailwind |
 | Backend | Next.js Route Handlers, Server Actions |
 | Database | PostgreSQL, Drizzle ORM |
 | Blockchain | Sepolia, Viem |
-| AI | OpenAI, LangChain |
+| Indexing | packages/indexer |
 | Execution | KeeperHub MCP / API |
 
 ## Quick Start
@@ -57,6 +57,34 @@ Open [http://localhost:3000](http://localhost:3000), click **Launch Dashboard**,
 4. Stress simulator runs scenarios for detected assets
 5. Risk report is hashed
 6. KeeperHub simulates and publishes the attestation onchain
+7. The indexer decodes `AttestationPublished` and persists proof history
+8. The Attestations page links every proof to Sepolia Etherscan
+
+## V1 Verified Flow
+
+TreasuryOS v1 has been verified end to end on Sepolia:
+
+```
+Treasury Address
+        ↓
+Real Wallet Balances
+        ↓
+Risk Score
+        ↓
+Stress Test
+        ↓
+Report Hash
+        ↓
+KeeperHub Publish
+        ↓
+AttestationPublished Event
+        ↓
+Database History
+        ↓
+Etherscan Verification
+```
+
+The scanner intentionally returns less data rather than invented data. Empty wallets show `$0`, no positions, and `N/A` risk rating.
 
 ## Project Structure
 
@@ -95,26 +123,30 @@ apps/web/
 | `SEPOLIA_RPC_URL` | Yes | Sepolia RPC endpoint |
 | `OPENAI_API_KEY` | No | Enables AI-generated explanations |
 | `KEEPERHUB_API_KEY` | No | Enables live KeeperHub execution |
+| `ATTESTATION_REGISTRY_ADDRESS` | Yes | Sepolia AttestationRegistry address |
+| `NEXT_PUBLIC_CHAIN` | Yes | Use `sepolia` |
 
-## Database Setup (Optional)
+## Database Setup
 
 ```bash
-cd apps/web
-npm run db:push
+npm run db:push --workspace=web
 ```
+
+The `attestations` table stores indexed `AttestationPublished` events. Blockchain logs remain the source of truth; the database is the app's queryable history.
 
 ## API Endpoints
 
-- `GET /api/treasury?wallet=0x...` — Fetch treasury dashboard data
-- `POST /api/treasury` — Connect and analyze treasury
-- `POST /api/execute` — Execute a decision via KeeperHub
+- `POST /api/report` — Scan, score, stress test, and hash a risk report
+- `POST /api/attestation` — Simulate or publish a KeeperHub attestation
+- `GET /api/attestations` — List persisted attestation history
+- `GET /api/treasury?wallet=0x...` — Legacy treasury dashboard data
 
 ## Analytics Engine
 
 | Metric | Formula |
 |--------|---------|
 | Treasury Value | Sum of asset USD values |
-| Runway | Treasury Value ÷ Monthly Burn |
+| Runway | Treasury Value / Monthly Burn |
 | Concentration | Largest asset ÷ Treasury value |
 | Idle Capital | Assets untouched for 30+ days |
 | Risk Score | Aggregate of runway, concentration, idle capital |

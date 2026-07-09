@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   Activity,
-  ArrowDown,
   Check,
   CheckCircle2,
   Clipboard,
@@ -374,9 +373,9 @@ export function V1Dashboard() {
                         <div>
                           <p className="text-xs uppercase text-zinc-500">Runway</p>
                           <p className="mt-1 flex items-center gap-2 font-mono text-sm text-zinc-100">
-                            {result.runwayMonthsBefore} mo
-                            <ArrowDown className="h-3 w-3 text-red-400" />
-                            {result.runwayMonthsAfter} mo
+                            <span>{months(result.runwayMonthsBefore)}</span>
+                            <span className="text-red-400">-&gt;</span>
+                            <span>{months(result.runwayMonthsAfter)}</span>
                           </p>
                         </div>
                       </div>
@@ -814,6 +813,10 @@ function percent(value: number): string {
     style: "percent",
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function months(value: number): string {
+  return `${value.toFixed(1)} mo`;
 }
 
 function delay(ms: number) {
