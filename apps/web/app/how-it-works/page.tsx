@@ -25,7 +25,7 @@ const flow = [
   },
   {
     title: "Treasury Scanner",
-    body: "The scanner builds the current treasury position snapshot.",
+    body: "The scanner combines wallet balances with Uniswap V3 and Aave V3 adapter positions.",
     icon: ScanLine,
     lane: "Scan",
   },
@@ -144,12 +144,12 @@ export default function HowItWorksPage() {
               Scan, score, simulate, publish, verify
             </h2>
             <p className="mt-3 text-sm leading-6 text-zinc-400">
-              The system stays inside the v1 scope: no custody, no execution,
-              no recommendations, and no background jobs. The output is a
-              verifiable attestation.
+              The system stays inside the v2.1 scope: no custody, no treasury
+              execution, and no invented positions. The output is a verifiable
+              attestation.
             </p>
             <div className="mt-5 grid gap-2">
-              {["Read-only", "Deterministic hash", "KeeperHub publish", "Etherscan proof"].map(
+              {["Wallet + DeFi adapters", "Deterministic hash", "KeeperHub publish", "Etherscan proof"].map(
                 (item) => (
                   <div key={item} className="flex items-center gap-2 text-sm text-zinc-300">
                     <CheckCircle2 className="h-4 w-4 text-emerald-300" />

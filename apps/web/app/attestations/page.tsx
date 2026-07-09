@@ -136,7 +136,6 @@ export default function AttestationsPage() {
               <th className="w-10 px-3 py-3" />
               <th className="px-3 py-3">Time</th>
               <th className="px-3 py-3">Treasury</th>
-              <th className="px-3 py-3">Rating</th>
               <th className="px-3 py-3">Report Hash</th>
               <th className="px-3 py-3">Transaction</th>
               <th className="px-3 py-3">Status</th>
@@ -145,14 +144,14 @@ export default function AttestationsPage() {
           <tbody className="divide-y divide-zinc-800">
             {state === "loading" ? (
               <tr>
-                <td colSpan={7} className="px-4 py-16 text-center text-zinc-500">
+                <td colSpan={6} className="px-4 py-16 text-center text-zinc-500">
                   <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin" />
                   Loading indexed attestations...
                 </td>
               </tr>
             ) : attestations.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-16 text-center text-zinc-500">
+                <td colSpan={6} className="px-4 py-16 text-center text-zinc-500">
                   <RadioTower className="mx-auto mb-3 h-8 w-8" />
                   No indexed attestations found in the database yet.
                 </td>
@@ -183,11 +182,6 @@ export default function AttestationsPage() {
                           value={entry.treasury}
                           display={truncateAddress(entry.treasury)}
                         />
-                      </td>
-                      <td className="px-3 py-4">
-                        <Badge variant="default" className="normal-case">
-                          N/A
-                        </Badge>
                       </td>
                       <td className="px-3 py-4">
                         <InlineCopy
@@ -226,10 +220,9 @@ export default function AttestationsPage() {
                     </tr>
                     {expanded ? (
                       <tr>
-                        <td colSpan={7} className="bg-zinc-950 px-6 py-5">
+                        <td colSpan={6} className="bg-zinc-950 px-6 py-5">
                           <div className="grid gap-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 md:grid-cols-2">
                             <Detail label="Full treasury address" value={entry.treasury} />
-                            <Detail label="Rating" value="N/A" />
                             <Detail label="Full report hash" value={entry.reportHash} />
                             <Detail
                               label="Full transaction hash"

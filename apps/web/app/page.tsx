@@ -57,7 +57,7 @@ export default function HomePage() {
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-wide text-zinc-500">
-                  Live preview
+                  Protocol-aware preview
                 </p>
                 <p className="mt-1 text-lg font-semibold text-white">
                   Risk report
@@ -68,10 +68,10 @@ export default function HomePage() {
               </Badge>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <PreviewMetric label="Risk Rating" value="B" />
-              <PreviewMetric label="Portfolio Value" value="$1.08M" />
-              <PreviewMetric label="Largest Exposure" value="USDC 61%" />
-              <PreviewMetric label="Composite Risk" value="42/100" />
+              <PreviewMetric label="Risk Rating" value="Generated" />
+              <PreviewMetric label="Portfolio Value" value="Onchain" />
+              <PreviewMetric label="Protocols" value="Wallet + DeFi" />
+              <PreviewMetric label="Report Proof" value="bytes32" />
             </div>
             <div className="mt-5 rounded-xl border border-white/10 bg-black/20 p-4">
               <div className="mb-3 flex items-center gap-2 text-sm text-zinc-300">
@@ -82,7 +82,7 @@ export default function HomePage() {
                 <div className="h-full w-[78%] rounded-full bg-gradient-to-r from-cyan-400 to-violet-500" />
               </div>
               <p className="mt-3 font-mono text-xs text-zinc-500">
-                0x7b70...fda7
+                Report hash -&gt; AttestationRegistry event
               </p>
             </div>
           </div>
@@ -90,9 +90,9 @@ export default function HomePage() {
       </section>
 
       <section className="mx-auto grid max-w-7xl gap-4 px-4 pb-10 sm:px-6 md:grid-cols-3 lg:px-8">
-        <MetricCard icon={ScanLine} label="Treasuries Scanned" value="128" />
-        <MetricCard icon={CheckCircle2} label="Real Onchain Attestations" value="37" />
-        <MetricCard icon={ShieldCheck} label="KeeperHub Powered" value="100%" />
+        <MetricCard icon={ScanLine} label="Protocol adapters" value="2" />
+        <MetricCard icon={CheckCircle2} label="Custody required" value="$0" />
+        <MetricCard icon={ShieldCheck} label="Proof network" value="Sepolia" />
       </section>
 
       <section id="how-it-works" className="mx-auto max-w-7xl px-4 pb-14 sm:px-6 lg:px-8">
