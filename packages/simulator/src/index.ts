@@ -8,6 +8,8 @@ import type {
 const MONTHLY_BURN_USD = 120_000;
 
 export function runStressScenarios(snapshot: TreasurySnapshot): StressResult[] {
+  if (snapshot.totalValueUsd === 0) return [];
+
   return [
     stress(snapshot, "ETH_-50"),
     stress(snapshot, "STABLE_DEPEG_-10"),

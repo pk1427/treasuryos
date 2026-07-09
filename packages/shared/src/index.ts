@@ -11,7 +11,7 @@ export type TreasurySnapshot = {
   fetchedAt: string;
 };
 
-export type RiskRating = "A" | "B" | "C" | "D" | "F";
+export type RiskRating = "A" | "B" | "C" | "D" | "F" | "N/A";
 
 export type RiskScore = {
   concentration: number;

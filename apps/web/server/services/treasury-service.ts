@@ -24,7 +24,7 @@ import type {
   TokenBalance,
 } from "@/types";
 
-// In-memory store for demo mode when DB is unavailable
+// In-memory store when DB is unavailable.
 const memoryStore = {
   treasuries: new Map<string, DemoTreasuryState>(),
 };
@@ -93,7 +93,7 @@ export class TreasuryService {
   async fetchAndAnalyze(walletAddress: string): Promise<DashboardData> {
     const config = getDemoTreasuryConfig();
     const balances = await getBalances(walletAddress);
-    const transactions = await getTransactions(walletAddress);
+    const transactions = await getTransactions();
 
     const isDemo =
       walletAddress.toLowerCase() === config.walletAddress.toLowerCase();
@@ -194,8 +194,7 @@ export class TreasuryService {
   async getDashboardData(walletAddress: string): Promise<DashboardData> {
     const config = getDemoTreasuryConfig();
     const isDemo =
-      walletAddress.toLowerCase() === config.walletAddress.toLowerCase() ||
-      process.env.USE_DEMO_DATA === "true";
+      walletAddress.toLowerCase() === config.walletAddress.toLowerCase();
 
     if (isDemo || !db) {
       const state = getOrCreateDemoState(
@@ -295,8 +294,6 @@ export class TreasuryService {
   }
 
   async executeDecision(decisionId: string, walletAddress: string) {
-    const config = getDemoTreasuryConfig();
-
     if (!db) {
       const state = getOrCreateDemoState(walletAddress);
       const decision = state.decisions.find((d) => d.id === decisionId);

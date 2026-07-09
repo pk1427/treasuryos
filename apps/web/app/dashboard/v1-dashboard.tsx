@@ -20,7 +20,6 @@ import {
 import type {
   AttestationResult,
   AttestationSimulation,
-  RiskRating,
   RiskReport,
 } from "@treasuryos/shared";
 import { Button } from "@/components/ui/button";
@@ -28,7 +27,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn, shortenHash } from "@/lib/utils";
 
-const DEMO_ADDRESS = "0x4f9f8a4f5e2c1d5f0e6a8b7c9d0e1f2a3b4c5d6e";
 const LOADING_STEPS = [
   "Scanning treasury...",
   "Loading positions...",
@@ -37,7 +35,6 @@ const LOADING_STEPS = [
   "Generating report hash...",
 ];
 const FLOW_STEPS = ["Scan", "Score", "Simulate", "Publish", "Verified"] as const;
-const ATTESTATION_STORAGE_KEY = "treasuryos.attestations.v1";
 
 type ReportResponse = {
   report: RiskReport;
@@ -48,7 +45,7 @@ type StepState = "idle" | "loading" | "done" | "error";
 type FlowStep = (typeof FLOW_STEPS)[number];
 
 export function V1Dashboard() {
-  const [address, setAddress] = useState(DEMO_ADDRESS);
+  const [address, setAddress] = useState("");
   const [reportResponse, setReportResponse] = useState<ReportResponse | null>(
     null
   );
@@ -64,6 +61,8 @@ export function V1Dashboard() {
 
   const report = reportResponse?.report;
   const reportHash = reportResponse?.reportHash;
+  const isEmptyTreasury = report ? report.snapshot.totalValueUsd === 0 : false;
+  const canAttest = Boolean(report && reportHash && !isEmptyTreasury);
   const network = process.env.NEXT_PUBLIC_CHAIN ?? "sepolia";
 
   const activeStep = getActiveStep(reportState, simulateState, publishState);
@@ -109,7 +108,7 @@ export function V1Dashboard() {
   }
 
   async function simulate() {
-    if (!report || !reportHash) return;
+    if (!report || !reportHash || isEmptyTreasury) return;
 
     setError(null);
     setSimulateState("loading");
@@ -142,7 +141,7 @@ export function V1Dashboard() {
   }
 
   async function publish() {
-    if (!report || !reportHash || !simulation) return;
+    if (!report || !reportHash || !simulation || isEmptyTreasury) return;
 
     setError(null);
     setPublishState("loading");
@@ -165,16 +164,6 @@ export function V1Dashboard() {
 
       setAttestation(data);
       setPublishState("done");
-      persistAttestation({
-        treasuryAddress: report.address,
-        rating: report.score.rating,
-        reportHash,
-        transactionHash: data.transactionHash,
-        transactionLink: data.transactionLink,
-        status: data.status,
-        network,
-        publishedAt: new Date().toISOString(),
-      });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Publish failed");
       setPublishState("error");
@@ -274,7 +263,9 @@ export function V1Dashboard() {
                       largestPosition.amountUsd /
                         report!.snapshot.totalValueUsd
                     )}`
-                  : "Enter an address and click Scan"
+                  : report
+                    ? "None"
+                    : "Enter an address and click Scan"
               }
             />
             <Metric
@@ -309,26 +300,30 @@ export function V1Dashboard() {
             </CardHeader>
             <CardContent>
               {report ? (
-                <div className="grid gap-3 md:grid-cols-2">
-                  {report.snapshot.positions.map((position) => (
-                    <div
-                      key={`${position.protocol}-${position.asset}`}
-                      className="rounded-xl border border-white/10 bg-black/20 p-4 transition hover:-translate-y-1 hover:border-cyan-400/30 hover:bg-white/[0.04]"
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div>
-                          <p className="text-lg font-semibold text-zinc-100">
-                            {position.asset}
+                report.snapshot.positions.length > 0 ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {report.snapshot.positions.map((position) => (
+                      <div
+                        key={`${position.protocol}-${position.asset}`}
+                        className="rounded-xl border border-white/10 bg-black/20 p-4 transition hover:-translate-y-1 hover:border-cyan-400/30 hover:bg-white/[0.04]"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-lg font-semibold text-zinc-100">
+                              {position.asset}
+                            </p>
+                            <ProtocolBadge protocol={position.protocol} />
+                          </div>
+                          <p className="text-right font-mono text-lg font-bold text-zinc-100">
+                            {usd(position.amountUsd)}
                           </p>
-                          <ProtocolBadge protocol={position.protocol} />
                         </div>
-                        <p className="text-right font-mono text-lg font-bold text-zinc-100">
-                          {usd(position.amountUsd)}
-                        </p>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <EmptyState icon={ScanLine} text="No positions found." />
+                )
               ) : (
                 <EmptyState icon={ScanLine} text="Enter an address and click Scan" />
               )}
@@ -344,6 +339,7 @@ export function V1Dashboard() {
             </CardHeader>
             <CardContent>
               {report ? (
+                report.stressResults.length > 0 ? (
                 <div className="grid gap-3">
                   {report.stressResults.map((result) => (
                     <div
@@ -387,6 +383,12 @@ export function V1Dashboard() {
                     </div>
                   ))}
                 </div>
+                ) : (
+                  <EmptyState
+                    icon={TriangleAlert}
+                    text="Not available for empty treasury."
+                  />
+                )
               ) : (
                 <EmptyState
                   icon={TriangleAlert}
@@ -406,7 +408,7 @@ export function V1Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {report ? (
+              {report && !isEmptyTreasury ? (
                 <div className="rounded-lg border border-zinc-800 bg-zinc-950 p-4">
                   <p className="mb-2 text-xs font-medium uppercase text-zinc-500">
                     Rating
@@ -418,6 +420,11 @@ export function V1Dashboard() {
                     {report.score.rating}
                   </Badge>
                 </div>
+              ) : isEmptyTreasury ? (
+                <EmptyState
+                  icon={FileJson}
+                  text="Cannot generate until treasury assets are detected."
+                />
               ) : (
                 <EmptyState icon={FileJson} text="Generated after scanning" />
               )}
@@ -438,12 +445,14 @@ export function V1Dashboard() {
                   explanation="Liquidity and stressed-exit sensitivity."
                 />
               </div>
-              <HashPanel
-                label="Report hash"
-                value={reportHash}
-                empty="Generated after scanning"
-                generatedAt={report?.generatedAt}
-              />
+              {!isEmptyTreasury ? (
+                <HashPanel
+                  label="Report hash"
+                  value={reportHash}
+                  empty="Generated after scanning"
+                  generatedAt={report?.generatedAt}
+                />
+              ) : null}
             </CardContent>
           </Card>
 
@@ -455,45 +464,58 @@ export function V1Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Step
-                title="Simulate"
-                body={simulation?.message ?? simulation?.status}
-                state={simulateState}
-              />
-              <Step
-                title="Publish"
-                body={attestation?.transactionHash ?? attestation?.status}
-                state={publishState}
-              />
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <Button
-                  variant="secondary"
-                  onClick={simulate}
-                  disabled={!report || simulateState === "loading"}
-                >
-                  {simulateState === "loading" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ShieldCheck className="h-4 w-4" />
-                  )}
-                  Simulate
-                </Button>
-                <Button
-                  onClick={publish}
-                  disabled={
-                    !simulation ||
-                    publishState === "loading" ||
-                    simulateState !== "done"
+              {canAttest ? (
+                <>
+                  <Step
+                    title="Simulate"
+                    body={simulation?.message ?? simulation?.status}
+                    state={simulateState}
+                  />
+                  <Step
+                    title="Publish"
+                    body={attestation?.transactionHash ?? attestation?.status}
+                    state={publishState}
+                  />
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <Button
+                      variant="secondary"
+                      onClick={simulate}
+                      disabled={simulateState === "loading"}
+                    >
+                      {simulateState === "loading" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <ShieldCheck className="h-4 w-4" />
+                      )}
+                      Simulate
+                    </Button>
+                    <Button
+                      onClick={publish}
+                      disabled={
+                        !simulation ||
+                        publishState === "loading" ||
+                        simulateState !== "done"
+                      }
+                    >
+                      {publishState === "loading" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4" />
+                      )}
+                      Publish
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <EmptyState
+                  icon={RadioTower}
+                  text={
+                    isEmptyTreasury
+                      ? "Cannot publish until treasury assets are detected."
+                      : "Generate a risk report to simulate and publish."
                   }
-                >
-                  {publishState === "loading" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="h-4 w-4" />
-                  )}
-                  Publish
-                </Button>
-              </div>
+                />
+              )}
               {attestation?.transactionHash ? (
                 <HashPanel
                   label="Transaction hash"
@@ -750,29 +772,8 @@ async function playLoadingSequence(setCopy: (copy: string) => void) {
   }
 }
 
-function persistAttestation(entry: {
-  treasuryAddress: string;
-  rating: RiskRating;
-  reportHash: string;
-  transactionHash?: string;
-  transactionLink?: string;
-  status: string;
-  network: string;
-  publishedAt: string;
-}) {
-  if (typeof window === "undefined" || !entry.transactionHash) return;
-
-  const current = JSON.parse(
-    window.localStorage.getItem(ATTESTATION_STORAGE_KEY) ?? "[]"
-  ) as typeof entry[];
-  const next = [
-    entry,
-    ...current.filter((item) => item.transactionHash !== entry.transactionHash),
-  ];
-  window.localStorage.setItem(ATTESTATION_STORAGE_KEY, JSON.stringify(next));
-}
-
 function ratingVariant(rating: RiskReport["score"]["rating"]) {
+  if (rating === "N/A") return "default";
   if (rating === "A" || rating === "B") return "low";
   if (rating === "C") return "medium";
   if (rating === "D") return "high";

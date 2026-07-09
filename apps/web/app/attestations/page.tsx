@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState, type MouseEvent } from "react";
+import { Fragment, useEffect, useState, type MouseEvent } from "react";
 import {
   Check,
   ChevronDown,
@@ -8,35 +8,90 @@ import {
   Clipboard,
   ExternalLink,
   FileJson,
+  Loader2,
   RadioTower,
   ShieldCheck,
   type LucideIcon,
 } from "lucide-react";
-import type { RiskRating } from "@treasuryos/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { shortenHash, truncateAddress } from "@/lib/utils";
 
-const ATTESTATION_STORAGE_KEY = "treasuryos.attestations.v1";
-
-type StoredAttestation = {
-  treasuryAddress: string;
-  rating: RiskRating;
-  reportHash: string;
-  transactionHash: string;
-  transactionLink?: string;
-  status: string;
+type IndexedAttestation = {
+  id: string;
   network: string;
-  publishedAt: string;
+  treasury: string;
+  reportHash: string;
+  publisher: string;
+  txHash: string;
+  blockNumber: string;
+  timestamp: string;
+  createdAt: string;
+  status: string;
+  transactionLink: string;
+};
+
+type AttestationsResponse = {
+  items: IndexedAttestation[];
+  page: {
+    limit: number;
+    offset: number;
+    nextOffset: number | null;
+    hasMore: boolean;
+  };
+  filters: {
+    network: string | null;
+    treasury: string | null;
+  };
 };
 
 export default function AttestationsPage() {
-  const [attestations] = useState<StoredAttestation[]>(() => {
-    if (typeof window === "undefined") return [];
-    const stored = window.localStorage.getItem(ATTESTATION_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
-  });
+  const [attestations, setAttestations] = useState<IndexedAttestation[]>([]);
   const [expandedTx, setExpandedTx] = useState<string | null>(null);
+  const [state, setState] = useState<"loading" | "done" | "error">("loading");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAttestations() {
+      setState("loading");
+      setError(null);
+
+      try {
+        const response = await fetch("/api/attestations?limit=50", {
+          cache: "no-store",
+        });
+        const data = (await response.json()) as AttestationsResponse & {
+          error?: string;
+        };
+
+        if (!response.ok) {
+          throw new Error(data.error ?? "Failed to load attestations");
+        }
+
+        if (!cancelled) {
+          setAttestations(data.items);
+          setState("done");
+        }
+      } catch (caught) {
+        if (!cancelled) {
+          setError(
+            caught instanceof Error
+              ? caught.message
+              : "Failed to load attestations"
+          );
+          setState("error");
+        }
+      }
+    }
+
+    loadAttestations();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_18%_8%,rgba(59,130,246,0.15),transparent_30%),radial-gradient(circle_at_88%_12%,rgba(139,92,246,0.13),transparent_32%),#09090b]">
@@ -45,15 +100,15 @@ export default function AttestationsPage() {
         <p className="text-sm font-medium text-cyan-300">Proof artifact</p>
         <h1 className="mt-1 text-3xl font-bold text-zinc-100">Attestations</h1>
         <p className="mt-2 max-w-3xl text-sm text-zinc-400">
-          Published KeeperHub attestations captured from this browser after a
-          successful dashboard publish.
+          Published KeeperHub attestations indexed from AttestationRegistry
+          events and persisted in the database.
         </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
         <SummaryCard
           icon={RadioTower}
-          label="Local attestations"
+          label="Indexed attestations"
           value={String(attestations.length)}
         />
         <SummaryCard
@@ -64,14 +119,15 @@ export default function AttestationsPage() {
         <SummaryCard
           icon={FileJson}
           label="History backing"
-          value="Local state"
+          value="Database"
         />
       </div>
 
-      <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200">
-        No persisted attestation history yet. Current implementation stores
-        attestations only in session/local state.
-      </div>
+      {error ? (
+        <div className="rounded-lg border border-red-900 bg-red-950/30 p-4 text-sm text-red-200">
+          {error}
+        </div>
+      ) : null}
 
       <div className="overflow-hidden rounded-lg border border-white/10 bg-zinc-900/60 backdrop-blur-xl">
         <table className="w-full min-w-[980px] text-left text-sm">
@@ -87,23 +143,29 @@ export default function AttestationsPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800">
-            {attestations.length === 0 ? (
+            {state === "loading" ? (
+              <tr>
+                <td colSpan={7} className="px-4 py-16 text-center text-zinc-500">
+                  <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin" />
+                  Loading indexed attestations...
+                </td>
+              </tr>
+            ) : attestations.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-16 text-center text-zinc-500">
                   <RadioTower className="mx-auto mb-3 h-8 w-8" />
-                  Publish an attestation from the Dashboard to populate this
-                  browser-local proof table.
+                  No indexed attestations found in the database yet.
                 </td>
               </tr>
             ) : (
               attestations.map((entry) => {
-                const expanded = expandedTx === entry.transactionHash;
+                const expanded = expandedTx === entry.txHash;
                 return (
-                  <Fragment key={entry.transactionHash}>
+                  <Fragment key={entry.txHash}>
                     <tr
                       className="cursor-pointer bg-zinc-950 hover:bg-zinc-900/60"
                       onClick={() =>
-                        setExpandedTx(expanded ? null : entry.transactionHash)
+                        setExpandedTx(expanded ? null : entry.txHash)
                       }
                     >
                       <td className="px-3 py-4 text-zinc-500">
@@ -114,17 +176,17 @@ export default function AttestationsPage() {
                         )}
                       </td>
                       <td className="px-3 py-4 text-zinc-300">
-                        {new Date(entry.publishedAt).toLocaleString()}
+                        {new Date(entry.timestamp).toLocaleString()}
                       </td>
                       <td className="px-3 py-4">
                         <InlineCopy
-                          value={entry.treasuryAddress}
-                          display={truncateAddress(entry.treasuryAddress)}
+                          value={entry.treasury}
+                          display={truncateAddress(entry.treasury)}
                         />
                       </td>
                       <td className="px-3 py-4">
-                        <Badge variant={ratingVariant(entry.rating)}>
-                          {entry.rating}
+                        <Badge variant="default" className="normal-case">
+                          N/A
                         </Badge>
                       </td>
                       <td className="px-3 py-4">
@@ -136,31 +198,29 @@ export default function AttestationsPage() {
                       <td className="px-3 py-4">
                         <div className="flex items-center gap-2">
                           <InlineCopy
-                            value={entry.transactionHash}
-                            display={shortenHash(entry.transactionHash)}
+                            value={entry.txHash}
+                            display={shortenHash(entry.txHash)}
                           />
-                          {entry.transactionLink ? (
-                            <Button
-                              asChild
-                              variant="ghost"
-                              size="icon"
-                              onClick={(event) => event.stopPropagation()}
-                              aria-label="View transaction on Etherscan"
+                          <Button
+                            asChild
+                            variant="ghost"
+                            size="icon"
+                            onClick={(event) => event.stopPropagation()}
+                            aria-label="View transaction on Etherscan"
+                          >
+                            <a
+                              href={entry.transactionLink}
+                              target="_blank"
+                              rel="noreferrer"
                             >
-                              <a
-                                href={entry.transactionLink}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </a>
-                            </Button>
-                          ) : null}
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          </Button>
                         </div>
                       </td>
                       <td className="px-3 py-4">
                         <Badge variant="low" className="normal-case">
-                          Attested Onchain
+                          ✓ Attested Onchain
                         </Badge>
                       </td>
                     </tr>
@@ -168,21 +228,27 @@ export default function AttestationsPage() {
                       <tr>
                         <td colSpan={7} className="bg-zinc-950 px-6 py-5">
                           <div className="grid gap-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 md:grid-cols-2">
-                            <Detail label="Full treasury address" value={entry.treasuryAddress} />
-                            <Detail label="Rating" value={entry.rating} />
+                            <Detail label="Full treasury address" value={entry.treasury} />
+                            <Detail label="Rating" value="N/A" />
                             <Detail label="Full report hash" value={entry.reportHash} />
                             <Detail
                               label="Full transaction hash"
-                              value={entry.transactionHash}
+                              value={entry.txHash}
                               link={entry.transactionLink}
                             />
-                            <Detail
-                              label="Published timestamp"
-                              value={new Date(entry.publishedAt).toLocaleString()}
-                            />
+                            <Detail label="Publisher" value={entry.publisher} />
+                            <Detail label="Block number" value={entry.blockNumber} />
                             <Detail label="Network" value={entry.network} />
-                            <Detail label="Publisher" value="Published via KeeperHub" />
-                            <Detail label="Status" value="Attested Onchain" />
+                            <Detail
+                              label="Timestamp"
+                              value={new Date(entry.timestamp).toLocaleString()}
+                            />
+                            <Detail label="Status" value="✓ Attested Onchain" />
+                            <Detail
+                              label="Etherscan"
+                              value="View on Etherscan"
+                              link={entry.transactionLink}
+                            />
                           </div>
                         </td>
                       </tr>
@@ -276,11 +342,4 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       {copied ? <Check className="h-3.5 w-3.5" /> : <Clipboard className="h-3.5 w-3.5" />}
     </Button>
   );
-}
-
-function ratingVariant(rating: RiskRating) {
-  if (rating === "A" || rating === "B") return "low";
-  if (rating === "C") return "medium";
-  if (rating === "D") return "high";
-  return "critical";
 }
