@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { generateRiskReport } from "@/lib/v1-report";
 
 export const maxDuration = 60;
-const REPORT_GENERATION_TIMEOUT_MS = 45_000;
+const REPORT_GENERATION_TIMEOUT_MS = 55_000;
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));

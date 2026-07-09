@@ -14,6 +14,7 @@ import { UNISWAP_V3 } from "./addresses";
 
 const ZERO_BALANCE = BigInt(0);
 const MAX_POSITIONS_PER_SCAN = 25;
+const NFT_BALANCE_TIMEOUT_MS = 6_000;
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const Q32 = BigInt("0x100000000");
 const Q96 = BigInt("0x1000000000000000000000000");
@@ -48,12 +49,15 @@ export const uniswapV3Adapter: TreasuryProtocolAdapter = {
   name: "Uniswap V3",
   async scan(address) {
     try {
-      const balance = await publicClient.readContract({
-        address: UNISWAP_V3.sepolia.nonfungiblePositionManager,
-        abi: nonfungiblePositionManagerAbi,
-        functionName: "balanceOf",
-        args: [address],
-      });
+      const balance = await withTimeout(
+        publicClient.readContract({
+          address: UNISWAP_V3.sepolia.nonfungiblePositionManager,
+          abi: nonfungiblePositionManagerAbi,
+          functionName: "balanceOf",
+          args: [address],
+        }),
+        NFT_BALANCE_TIMEOUT_MS
+      );
 
       if (balance === ZERO_BALANCE) return [];
 
@@ -164,6 +168,15 @@ async function getPoolAddress(
   token1: Address,
   fee: number
 ): Promise<Address> {
+  const knownPool = UNISWAP_V3.sepolia.pools.find(
+    (pool) =>
+      pool.token0.toLowerCase() === token0.toLowerCase() &&
+      pool.token1.toLowerCase() === token1.toLowerCase() &&
+      pool.fee === fee
+  );
+
+  if (knownPool) return knownPool.pool;
+
   return publicClient.readContract({
     address: UNISWAP_V3.sepolia.factory,
     abi: uniswapV3FactoryAbi,
@@ -295,4 +308,25 @@ function getSqrtRatioAtTick(tick: number): bigint {
 
   const shifted = ratio >> BigInt(32);
   return ratio % Q32 === ZERO_BALANCE ? shifted : shifted + BigInt(1);
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error("Uniswap V3 read timed out.")),
+          timeoutMs
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }

@@ -34,7 +34,7 @@ const LOADING_STEPS = [
   "Generating report hash...",
 ];
 const FLOW_STEPS = ["Scan", "Score", "Simulate", "Publish", "Verified"] as const;
-const REPORT_REQUEST_TIMEOUT_MS = 55_000;
+const REPORT_REQUEST_TIMEOUT_MS = 60_000;
 
 type ReportResponse = {
   report: RiskReport;

@@ -3,7 +3,7 @@ import type { TreasuryPosition } from "@treasuryos/shared";
 import { uniswapV3Adapter } from "./uniswap-v3";
 import type { TreasuryProtocolAdapter } from "./adapter";
 
-const PROTOCOL_SCAN_TIMEOUT_MS = 25_000;
+const PROTOCOL_SCAN_TIMEOUT_MS = 45_000;
 
 export const TREASURY_PROTOCOL_ADAPTERS: TreasuryProtocolAdapter[] = [
   uniswapV3Adapter,
