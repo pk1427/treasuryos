@@ -27,7 +27,7 @@ const erc20BalanceOfAbi = [
 
 const publicClient = createPublicClient({
   chain: base,
-  transport: http(process.env.BASE_RPC_URL ?? "https://mainnet.base.org"),
+  transport: http(process.env.SEPOLIA_RPC_URL ?? "https://mainnet.base.org"),
 });
 
 const FALLBACK_PRICES: Record<string, number> = {
