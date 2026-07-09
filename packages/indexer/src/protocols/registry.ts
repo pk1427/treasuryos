@@ -3,6 +3,8 @@ import type { TreasuryPosition } from "@treasuryos/shared";
 import { uniswapV3Adapter } from "./uniswap-v3";
 import type { TreasuryProtocolAdapter } from "./adapter";
 
+const PROTOCOL_SCAN_TIMEOUT_MS = 12_000;
+
 export const TREASURY_PROTOCOL_ADAPTERS: TreasuryProtocolAdapter[] = [
   uniswapV3Adapter,
 ];
@@ -13,7 +15,10 @@ export async function scanProtocolPositions(
   const results = await Promise.all(
     TREASURY_PROTOCOL_ADAPTERS.map(async (adapter) => {
       try {
-        return await adapter.scan(address);
+        return await withTimeout(
+          adapter.scan(address),
+          PROTOCOL_SCAN_TIMEOUT_MS
+        );
       } catch {
         return [];
       }
@@ -21,4 +26,25 @@ export async function scanProtocolPositions(
   );
 
   return results.flat();
+}
+
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeout = setTimeout(
+          () => reject(new Error("Protocol scan timed out.")),
+          timeoutMs
+        );
+      }),
+    ]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
 }

@@ -5,9 +5,10 @@ import { scanProtocolPositions } from "./protocols";
 
 export async function scanTreasury(address: string): Promise<TreasurySnapshot> {
   const normalizedAddress = normalizeAddress(address);
-  const [nativeBalance, tokenBalances] = await Promise.all([
+  const [nativeBalance, tokenBalances, protocolPositions] = await Promise.all([
     getNativeBalance(normalizedAddress),
     getTokenBalances(normalizedAddress),
+    scanProtocolPositions(normalizedAddress),
   ]);
 
   const discoveredBalances = [
@@ -23,7 +24,6 @@ export async function scanTreasury(address: string): Promise<TreasurySnapshot> {
       amountUsd: roundUsd(Number.parseFloat(balance.amount) * getTokenPrice(balance.symbol)),
     }))
     .filter((position) => position.amountUsd > 0);
-  const protocolPositions = await scanProtocolPositions(normalizedAddress);
   const positions = [...walletPositions, ...protocolPositions];
 
   return {

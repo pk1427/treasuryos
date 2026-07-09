@@ -34,6 +34,7 @@ const LOADING_STEPS = [
   "Generating report hash...",
 ];
 const FLOW_STEPS = ["Scan", "Score", "Simulate", "Publish", "Verified"] as const;
+const REPORT_REQUEST_TIMEOUT_MS = 45_000;
 
 type ReportResponse = {
   report: RiskReport;
@@ -102,11 +103,17 @@ export function V1Dashboard() {
     setAttestation(null);
 
     try {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(
+        () => controller.abort(),
+        REPORT_REQUEST_TIMEOUT_MS
+      );
       const responsePromise = fetch("/api/report", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ address }),
-      });
+        signal: controller.signal,
+      }).finally(() => window.clearTimeout(timeout));
 
       const [response] = await Promise.all([
         responsePromise,
@@ -121,7 +128,7 @@ export function V1Dashboard() {
       setReportResponse(data);
       setReportState("done");
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Report failed");
+      setError(reportErrorMessage(caught));
       setReportState("error");
     }
   }
@@ -791,6 +798,14 @@ function positionTypeLabel(type: string | undefined): string {
   if (type === "staking") return "Staked";
   if (type === "vault") return "Vault";
   return "Wallet balance";
+}
+
+function reportErrorMessage(caught: unknown): string {
+  if (caught instanceof Error && caught.name === "AbortError") {
+    return "Report generation timed out. Check the Sepolia RPC configuration and try again.";
+  }
+
+  return caught instanceof Error ? caught.message : "Report failed";
 }
 
 function getActiveStep(

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { generateRiskReport } from "@/lib/v1-report";
 
+export const maxDuration = 60;
+
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const address = body.address;
