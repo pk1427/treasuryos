@@ -15,20 +15,6 @@ const erc20Abi = [
     stateMutability: "view",
     type: "function",
   },
-  {
-    inputs: [],
-    name: "symbol",
-    outputs: [{ name: "", type: "string" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "decimals",
-    outputs: [{ name: "", type: "uint8" }],
-    stateMutability: "view",
-    type: "function",
-  },
 ] as const;
 const ZERO_BALANCE = BigInt(0);
 
@@ -61,30 +47,18 @@ export async function getTokenBalances(
   const balances = await Promise.all(
     SUPPORTED_TOKENS.map(async (token) => {
       try {
-        const [balance, symbol, decimals] = await Promise.all([
-          publicClient.readContract({
-            address: token.address,
-            abi: erc20Abi,
-            functionName: "balanceOf",
-            args: [address],
-          }),
-          publicClient.readContract({
-            address: token.address,
-            abi: erc20Abi,
-            functionName: "symbol",
-          }),
-          publicClient.readContract({
-            address: token.address,
-            abi: erc20Abi,
-            functionName: "decimals",
-          }),
-        ]);
+        const balance = await publicClient.readContract({
+          address: token.address,
+          abi: erc20Abi,
+          functionName: "balanceOf",
+          args: [address],
+        });
 
         if (balance === ZERO_BALANCE) return null;
 
         return {
-          symbol,
-          amount: formatUnits(balance, decimals),
+          symbol: token.symbol,
+          amount: formatUnits(balance, token.decimals),
         };
       } catch {
         return null;

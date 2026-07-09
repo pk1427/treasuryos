@@ -2,6 +2,7 @@ import type { TreasuryPosition } from "@treasuryos/shared";
 import { formatUnits, type Address } from "viem";
 import { publicClient } from "../../client";
 import { getTokenPrice } from "../../prices";
+import { getSupportedToken } from "../../tokens";
 import type { TreasuryProtocolAdapter } from "../adapter";
 import {
   erc20MetadataAbi,
@@ -184,6 +185,14 @@ async function getPoolState(pool: Address): Promise<[bigint, number]> {
 async function getTokenMetadata(
   address: Address
 ): Promise<{ symbol: string; decimals: number }> {
+  const supportedToken = getSupportedToken(address);
+  if (supportedToken) {
+    return {
+      symbol: supportedToken.symbol,
+      decimals: supportedToken.decimals,
+    };
+  }
+
   try {
     const [symbol, decimals] = await Promise.all([
       publicClient.readContract({
