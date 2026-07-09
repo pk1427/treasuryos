@@ -71,6 +71,26 @@ export function V1Dashboard() {
       (a, b) => b.amountUsd - a.amountUsd
     )[0];
   }, [report]);
+  const groupedPositions = useMemo(() => {
+    if (!report) return [];
+
+    const groups = new Map<string, typeof report.snapshot.positions>();
+    for (const position of report.snapshot.positions) {
+      groups.set(position.protocol, [
+        ...(groups.get(position.protocol) ?? []),
+        position,
+      ]);
+    }
+
+    return [...groups.entries()].map(([protocol, positions]) => ({
+      protocol,
+      positions,
+      totalValueUsd: positions.reduce(
+        (sum, position) => sum + position.amountUsd,
+        0
+      ),
+    }));
+  }, [report]);
 
   async function generateReport() {
     setError(null);
@@ -300,22 +320,36 @@ export function V1Dashboard() {
             <CardContent>
               {report ? (
                 report.snapshot.positions.length > 0 ? (
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {report.snapshot.positions.map((position) => (
-                      <div
-                        key={`${position.protocol}-${position.asset}`}
-                        className="rounded-xl border border-white/10 bg-black/20 p-4 transition hover:-translate-y-1 hover:border-cyan-400/30 hover:bg-white/[0.04]"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="text-lg font-semibold text-zinc-100">
-                              {position.asset}
-                            </p>
-                            <ProtocolBadge protocol={position.protocol} />
-                          </div>
-                          <p className="text-right font-mono text-lg font-bold text-zinc-100">
-                            {usd(position.amountUsd)}
+                  <div className="space-y-5">
+                    {groupedPositions.map((group) => (
+                      <div key={group.protocol} className="space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <ProtocolBadge protocol={group.protocol} />
+                          <p className="font-mono text-sm font-semibold text-zinc-200">
+                            {usd(group.totalValueUsd)}
                           </p>
+                        </div>
+                        <div className="grid gap-3 md:grid-cols-2">
+                          {group.positions.map((position) => (
+                            <div
+                              key={`${position.protocol}-${position.asset}-${position.type ?? "position"}`}
+                              className="rounded-xl border border-white/10 bg-black/20 p-4 transition hover:-translate-y-1 hover:border-cyan-400/30 hover:bg-white/[0.04]"
+                            >
+                              <div className="flex items-start justify-between gap-4">
+                                <div>
+                                  <p className="text-lg font-semibold text-zinc-100">
+                                    {position.asset}
+                                  </p>
+                                  <p className="mt-1 text-xs uppercase text-zinc-500">
+                                    {positionTypeLabel(position.type)}
+                                  </p>
+                                </div>
+                                <p className="text-right font-mono text-lg font-bold text-zinc-100">
+                                  {usd(position.amountUsd)}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </div>
                     ))}
@@ -734,11 +768,9 @@ function CopyButton({ value, label }: { value: string; label: string }) {
 
 function ProtocolBadge({ protocol }: { protocol: string }) {
   const key = protocol.toLowerCase();
-  const className = key.includes("aave")
-    ? "border-sky-400/30 bg-sky-500/10 text-sky-300"
-    : key.includes("uniswap")
-      ? "border-pink-400/30 bg-pink-500/10 text-pink-300"
-      : "border-violet-400/30 bg-violet-500/10 text-violet-300";
+  const className = key.includes("uniswap")
+    ? "border-pink-400/30 bg-pink-500/10 text-pink-300"
+    : "border-violet-400/30 bg-violet-500/10 text-violet-300";
 
   return (
     <span
@@ -750,6 +782,15 @@ function ProtocolBadge({ protocol }: { protocol: string }) {
       {protocol}
     </span>
   );
+}
+
+function positionTypeLabel(type: string | undefined): string {
+  if (type === "lending") return "Supplied";
+  if (type === "borrowing") return "Borrowed";
+  if (type === "lp") return "Liquidity position";
+  if (type === "staking") return "Staked";
+  if (type === "vault") return "Vault";
+  return "Wallet balance";
 }
 
 function getActiveStep(

@@ -1,6 +1,7 @@
 import type { TreasuryPosition, TreasurySnapshot } from "@treasuryos/shared";
 import { getNativeBalance, getTokenBalances, normalizeAddress } from "./balances";
 import { getTokenPrice } from "./prices";
+import { scanProtocolPositions } from "./protocols";
 
 export async function scanTreasury(address: string): Promise<TreasurySnapshot> {
   const normalizedAddress = normalizeAddress(address);
@@ -14,13 +15,16 @@ export async function scanTreasury(address: string): Promise<TreasurySnapshot> {
     ...tokenBalances,
   ];
 
-  const positions = discoveredBalances
+  const walletPositions = discoveredBalances
     .map<TreasuryPosition>((balance) => ({
       protocol: "Wallet",
       asset: balance.symbol,
+      type: "wallet",
       amountUsd: roundUsd(Number.parseFloat(balance.amount) * getTokenPrice(balance.symbol)),
     }))
     .filter((position) => position.amountUsd > 0);
+  const protocolPositions = await scanProtocolPositions(normalizedAddress);
+  const positions = [...walletPositions, ...protocolPositions];
 
   return {
     address: normalizedAddress,

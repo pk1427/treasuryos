@@ -125,7 +125,6 @@ apps/web/
 | `KEEPERHUB_API_KEY` | No | Enables live KeeperHub execution |
 | `ATTESTATION_REGISTRY_ADDRESS` | Yes | Sepolia AttestationRegistry address |
 | `NEXT_PUBLIC_CHAIN` | Yes | Use `sepolia` |
-
 ## Database Setup
 
 ```bash
@@ -133,6 +132,18 @@ npm run db:push --workspace=web
 ```
 
 The `attestations` table stores indexed `AttestationPublished` events. Blockchain logs remain the source of truth; the database is the app's queryable history.
+
+## V2 Adapter System
+
+TreasuryOS V2 introduces protocol adapters. The scanner still reads wallet ETH and ERC20 balances, then appends positions discovered by enabled adapters.
+
+Current adapter support:
+
+| Adapter | Network | Positions |
+|---------|---------|-----------|
+| Uniswap V3 | Ethereum Sepolia | LP NFTs via NonfungiblePositionManager |
+
+Protocol deployment addresses live in `packages/indexer/src/protocols`. If protocol reads fail, TreasuryOS falls back to V1 wallet scanning without inventing positions.
 
 ## API Endpoints
 

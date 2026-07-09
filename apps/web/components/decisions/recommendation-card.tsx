@@ -11,13 +11,11 @@ import { Loader2, Play, CheckCircle2 } from "lucide-react";
 interface RecommendationCardProps {
   recommendation: DashboardDecision;
   walletAddress: string;
-  index: number;
 }
 
 export function RecommendationCard({
   recommendation,
   walletAddress,
-  index,
 }: RecommendationCardProps) {
   const [loading, setLoading] = useState(false);
   const [executed, setExecuted] = useState(recommendation.status === "executed");

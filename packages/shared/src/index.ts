@@ -2,6 +2,14 @@ export type TreasuryPosition = {
   protocol: string;
   asset: string;
   amountUsd: number;
+  type?: "wallet" | "lending" | "borrowing" | "lp" | "staking" | "vault";
+  tokens?: {
+    address: string;
+    symbol: string;
+    amount: number;
+    amountUsd: number;
+  }[];
+  metadata?: Record<string, string | number | boolean>;
 };
 
 export type TreasurySnapshot = {
