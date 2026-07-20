@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn, shortenHash } from "@/lib/utils";
+import { TreasuryBriefing } from "@/components/treasury/treasury-briefing";
 
 const LOADING_STEPS = [
   "Scanning treasury...",
@@ -762,9 +763,10 @@ export function V1Dashboard() {
                     </div>
                   </div>
                 ) : null}
-              </CardContent>
-            </Card>
+            </CardContent>
+          </Card>
           ) : null}
+          <TreasuryBriefing address={address} />
         </div>
       </div>
 
