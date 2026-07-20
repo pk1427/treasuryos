@@ -21,6 +21,7 @@ import type {
   AttestationResult,
   AttestationSimulation,
   RiskReport,
+  RiskReportV2,
 } from "@treasuryos/shared";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,7 @@ const DISPLAY_PROTOCOLS = ["Wallet", "Uniswap", "Aave"] as const;
 type ReportResponse = {
   report: RiskReport;
   reportHash: `0x${string}`;
+  riskV2: RiskReportV2;
 };
 
 type StepState = "idle" | "loading" | "done" | "error";
@@ -51,6 +53,7 @@ export function V1Dashboard() {
   const [reportResponse, setReportResponse] = useState<ReportResponse | null>(
     null
   );
+  const [riskV2, setRiskV2] = useState<RiskReportV2 | null>(null);
   const [simulation, setSimulation] = useState<AttestationSimulation | null>(
     null
   );
@@ -137,6 +140,7 @@ export function V1Dashboard() {
       }
 
       setReportResponse(data);
+      setRiskV2(data.riskV2 ?? null);
       setReportState("done");
     } catch (caught) {
       setError(reportErrorMessage(caught));
@@ -683,6 +687,84 @@ export function V1Dashboard() {
               ) : null}
             </CardContent>
           </Card>
+
+          {riskV2 ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TriangleAlert className="h-5 w-5 text-amber-400" />
+                  Treasury Intelligence
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center gap-3">
+                  <Badge
+                    variant={ratingVariant(riskV2.compositeRisk.rating)}
+                    className="px-4 py-2 text-3xl font-bold"
+                  >
+                    {riskV2.compositeRisk.rating}
+                  </Badge>
+                  <div>
+                    <p className="text-sm text-zinc-400">Composite Risk Score</p>
+                    <p className="text-2xl font-bold text-zinc-100">
+                      {riskV2.compositeRisk.score}/100
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <RiskModuleCard
+                    title="Wallet Risk"
+                    factors={riskV2.walletRisk.factors}
+                  />
+                  <RiskModuleCard
+                    title="Aave Risk"
+                    factors={riskV2.aaveRisk.factors}
+                  />
+                  <RiskModuleCard
+                    title="Uniswap Risk"
+                    factors={riskV2.uniswapRisk.factors}
+                  />
+                  <RiskModuleCard
+                    title="Treasury Risk"
+                    factors={riskV2.treasuryRisk.factors}
+                  />
+                  <RiskModuleCard
+                    title="Stress Risk"
+                    factors={riskV2.stressRisk.factors}
+                    showLiquidationProjection
+                  />
+                </div>
+
+                {riskV2.recommendations.length > 0 ? (
+                  <div>
+                    <p className="mb-3 text-xs font-medium uppercase text-zinc-500">
+                      Recommendations
+                    </p>
+                    <div className="space-y-2">
+                      {riskV2.recommendations.map((rec, index) => (
+                        <div
+                          key={index}
+                          className="flex items-start gap-3 rounded-xl border border-white/10 bg-black/20 p-3"
+                        >
+                          <Badge
+                            variant={severityVariant(rec.priority)}
+                            className="normal-case"
+                          >
+                            {rec.priority}
+                          </Badge>
+                          <div>
+                            <p className="text-sm text-zinc-200">{rec.action}</p>
+                            <p className="text-xs text-zinc-500">{rec.reason}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          ) : null}
         </div>
       </div>
 
@@ -1057,4 +1139,97 @@ function months(value: number): string {
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function RiskModuleCard({
+  title,
+  factors,
+  showLiquidationProjection,
+}: {
+  title: string;
+  factors: Array<import("@treasuryos/shared").RiskFactor | import("@treasuryos/shared").StressRiskFactor>;
+  showLiquidationProjection?: boolean;
+}) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+      <p className="mb-3 text-xs font-medium uppercase text-zinc-500">{title}</p>
+      {factors.length === 0 ? (
+        <p className="text-sm text-zinc-500">No data available.</p>
+      ) : (
+        <div className="space-y-2">
+          {factors.map((factor) => (
+            <div
+              key={factor.id}
+              className="flex items-start gap-2 rounded-lg border border-white/5 bg-white/[0.02] p-2"
+            >
+              <Badge
+                variant={severityVariant(factor.severity)}
+                className="normal-case"
+              >
+                {factor.severity}
+              </Badge>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-zinc-200">{factor.title}</p>
+                <p className="text-xs text-zinc-500">{factor.description}</p>
+                {"metric" in factor && factor.metric ? (
+                  <p className="mt-1 font-mono text-xs text-cyan-300">{factor.metric}</p>
+                ) : null}
+                {"lossPercent" in factor && factor.lossPercent != null ? (
+                  <p className="mt-1 font-mono text-xs text-cyan-300">
+                    Loss: {factor.lossPercent.toFixed(0)}%
+                  </p>
+                ) : null}
+                {showLiquidationProjection &&
+                "liquidationProjection" in factor &&
+                factor.liquidationProjection ? (
+                  <div className="mt-2 rounded-lg border border-white/10 bg-black/20 p-2">
+                    <p className="text-xs font-medium uppercase text-zinc-500">
+                      Liquidation Projection
+                    </p>
+                    <p className="mt-1 font-mono text-xs text-zinc-300">
+                      Current HF: {factor.liquidationProjection.currentHealthFactor.toFixed(2)}
+                    </p>
+                    <p className="font-mono text-xs text-zinc-300">
+                      Projected HF: {factor.liquidationProjection.projectedHealthFactor.toFixed(2)}
+                    </p>
+                    <Badge
+                      variant={
+                        factor.liquidationProjection.status === "liquidatable"
+                          ? "critical"
+                          : factor.liquidationProjection.status === "at-risk"
+                            ? "medium"
+                            : "low"
+                      }
+                      className="mt-1 normal-case"
+                    >
+                      {factor.liquidationProjection.status === "liquidatable"
+                        ? "Immediate liquidation risk"
+                        : factor.liquidationProjection.status === "at-risk"
+                          ? "At risk"
+                          : "Healthy"}
+                    </Badge>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function severityVariant(severity: string): "low" | "medium" | "high" | "critical" | "default" {
+  switch (severity) {
+    case "low":
+      return "low";
+    case "medium":
+      return "medium";
+    case "high":
+      return "high";
+    case "critical":
+      return "critical";
+    default:
+      return "default";
+  }
 }
