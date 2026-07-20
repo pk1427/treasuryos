@@ -17,6 +17,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type {
+  AaveAccountSummary,
   AttestationResult,
   AttestationSimulation,
   RiskReport,
@@ -353,29 +354,111 @@ export function V1Dashboard() {
                                 key={`${position.protocol}-${position.asset}-${position.type ?? "position"}`}
                                 className="rounded-xl border border-white/10 bg-black/20 p-4 transition hover:-translate-y-1 hover:border-cyan-400/30 hover:bg-white/[0.04]"
                               >
-                                <div className="flex items-start justify-between gap-4">
-                                  <div>
-                                    <p className="text-lg font-semibold text-zinc-100">
-                                      {position.asset}
-                                    </p>
-                                    <p className="mt-1 text-xs uppercase text-zinc-500">
-                                      {positionTypeLabel(position.type)}
-                                    </p>
-                                  </div>
-                                  <p className="text-right font-mono text-lg font-bold text-zinc-100">
-                                    {usd(position.amountUsd)}
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="rounded-xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-zinc-500">
-                            No {group.protocol} positions found.
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-lg font-semibold text-zinc-100">
+                        {position.asset}
+                      </p>
+                      <p className="mt-1 text-xs uppercase text-zinc-500">
+                        {positionTypeLabel(position.type)}
+                      </p>
+                      {position.protocol === "Aave" &&
+                      position.metadata?.positionType ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Badge
+                            variant={
+                              position.metadata.positionType === "supplied"
+                                ? "low"
+                                : "critical"
+                            }
+                            className="normal-case"
+                          >
+                            {position.metadata.positionType === "supplied"
+                              ? "Supplied"
+                              : "Borrowed"}
+                          </Badge>
+                          {typeof position.metadata.apyPercent === "number" ? (
+                            <span className="text-xs text-zinc-400">
+                              APY {Number(position.metadata.apyPercent).toFixed(1)}%
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
+                      {position.protocol === "Uniswap" &&
+                      position.metadata?.feeTierPercent != null ? (
+                        <p className="mt-1 text-xs text-zinc-400">
+                          Fee Tier{" "}
+                          {Number(position.metadata.feeTierPercent).toFixed(2)}%
+                        </p>
+                      ) : null}
+                      {position.protocol === "Uniswap" &&
+                      position.metadata?.unclaimedFees &&
+                      typeof position.metadata.unclaimedFees === "object" &&
+                      "totalUsd" in position.metadata.unclaimedFees ? (
+                        <p className="mt-1 text-xs text-emerald-300">
+                          Unclaimed Fees{" "}
+                          {usd(Number((position.metadata.unclaimedFees as { totalUsd: number }).totalUsd))}
+                        </p>
+                      ) : null}
+                      {position.protocol === "Uniswap" &&
+                      position.metadata?.inRange != null ? (
+                        <Badge
+                          variant={position.metadata.inRange ? "low" : "default"}
+                          className="mt-2 normal-case"
+                        >
+                          {position.metadata.inRange ? "In Range" : "Out of Range"}
+                        </Badge>
+                      ) : null}
+                      {position.protocol === "Uniswap" &&
+                      position.metadata?.positionEfficiency != null ? (
+                        <p className="mt-1 text-xs text-zinc-400">
+                          Efficiency{" "}
+                          {(Number(position.metadata.positionEfficiency)).toFixed(1)}x
+                        </p>
+                      ) : null}
+                      {position.protocol === "Uniswap" &&
+                      position.metadata?.impermanentLoss &&
+                      typeof position.metadata.impermanentLoss === "object" &&
+                      "value" in position.metadata.impermanentLoss ? (
+                        <p className="mt-1 text-xs text-zinc-400">
+                          Impermanent Loss{" "}
+                          {(position.metadata.impermanentLoss as { value: number | null }).value !=
+                          null
+                            ? `${Number((position.metadata.impermanentLoss as { value: number }).value).toFixed(1)}%`
+                            : "—"}
+                        </p>
+                      ) : null}
+                      {position.protocol === "Uniswap" &&
+                      position.metadata?.feeApr &&
+                      typeof position.metadata.feeApr === "object" &&
+                      "value" in position.metadata.feeApr ? (
+                        <p className="mt-1 text-xs text-zinc-400">
+                          Fee APR{" "}
+                          {(position.metadata.feeApr as { value: number | null }).value != null
+                            ? `${Number((position.metadata.feeApr as { value: number }).value).toFixed(1)}%`
+                            : "—"}
+                        </p>
+                      ) : null}
+                    </div>
+                    <p className="text-right font-mono text-lg font-bold text-zinc-100">
+                      {usd(position.amountUsd)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-white/10 bg-black/10 p-4 text-sm text-zinc-500">
+              No {group.protocol} positions found.
+            </div>
+          )}
+          {group.protocol === "Aave" && group.positions[0]?.metadata?.accountSummary ? (
+            <AaveAccountSummary
+              summary={group.positions[0].metadata.accountSummary as unknown as AaveAccountSummary}
+            />
+          ) : null}
+        </div>
+      ))}
                   </div>
                 ) : (
                   <EmptyState icon={ScanLine} text="No positions found." />
@@ -807,6 +890,85 @@ function ProtocolBadge({ protocol }: { protocol: string }) {
       {protocol}
     </span>
   );
+}
+
+function AaveAccountSummary({ summary }: { summary: AaveAccountSummary }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+      <p className="mb-3 text-xs font-medium uppercase text-zinc-500">
+        Account Summary
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <MetricRow
+          label="Health Factor"
+          value={
+            summary.healthFactor === null
+              ? "∞ (No Debt)"
+              : summary.healthFactor.toFixed(2)
+          }
+        />
+        <MetricRow
+          label="Current LTV"
+          value={`${summary.currentLtvPercent.toFixed(1)}%`}
+        />
+        <MetricRow
+          label="Liquidation Threshold"
+          value={`${summary.liquidationThresholdPercent.toFixed(1)}%`}
+        />
+        <MetricRow
+          label="Available Borrow"
+          value={usd(summary.availableBorrowUsd)}
+        />
+        <MetricRow
+          label="Collateral Status"
+          value={
+            <CollateralStatusBadge status={summary.collateralStatus} />
+          }
+        />
+        <MetricRow
+          label="Rewards"
+          value={
+            summary.rewardsSource === "not-supported" ? (
+              <span className="flex items-center gap-1">
+                —
+                <span className="text-zinc-500" title="This Aave deployment has no active incentives controller">
+                  (?)
+                </span>
+              </span>
+            ) : (
+              usd(summary.rewardsUsd)
+            )
+          }
+        />
+      </div>
+    </div>
+  );
+}
+
+function MetricRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs uppercase text-zinc-500">{label}</p>
+      <p className="mt-1 font-mono text-sm text-zinc-200">{value}</p>
+    </div>
+  );
+}
+
+function CollateralStatusBadge({
+  status,
+}: {
+  status: AaveAccountSummary["collateralStatus"];
+}) {
+  const variant =
+    status === "Healthy"
+      ? "low"
+      : status === "At Risk"
+        ? "medium"
+        : status === "Liquidatable"
+          ? "critical"
+          : "default";
+
+  return <Badge variant={variant} className="normal-case">{status}</Badge>;
 }
 
 function positionTypeLabel(type: string | undefined): string {

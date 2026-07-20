@@ -16,14 +16,19 @@ export async function scanTreasury(address: string): Promise<TreasurySnapshot> {
     ...tokenBalances,
   ];
 
-  const walletPositions = discoveredBalances
-    .map<TreasuryPosition>((balance) => ({
-      protocol: "Wallet",
-      asset: balance.symbol,
-      type: "wallet",
-      amountUsd: roundUsd(Number.parseFloat(balance.amount) * getTokenPrice(balance.symbol)),
-    }))
-    .filter((position) => position.amountUsd > 0);
+  const walletPositions = (
+    await Promise.all(
+      discoveredBalances.map(async (balance): Promise<TreasuryPosition> => {
+        const { price } = await getTokenPrice(balance.symbol);
+        return {
+          protocol: "Wallet",
+          asset: balance.symbol,
+          type: "wallet",
+          amountUsd: roundUsd(Number.parseFloat(balance.amount) * price),
+        };
+      })
+    )
+  ).filter((position) => position.amountUsd > 0);
   const positions = [...walletPositions, ...protocolPositions];
 
   return {

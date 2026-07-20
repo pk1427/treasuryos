@@ -97,8 +97,20 @@ async function readPosition(tokenId: bigint): Promise<TreasuryPosition | null> {
       args: [tokenId],
     });
 
-    const [, , token0, token1, fee, tickLower, tickUpper, liquidity] =
-      position;
+    const [
+      ,
+      ,
+      token0,
+      token1,
+      fee,
+      tickLower,
+      tickUpper,
+      liquidity,
+      ,
+      ,
+      tokensOwed0,
+      tokensOwed1,
+    ] = position;
 
     if (liquidity === ZERO_BALANCE) return null;
 
@@ -119,9 +131,26 @@ async function readPosition(tokenId: bigint): Promise<TreasuryPosition | null> {
     });
     const amount0 = Number(formatUnits(amounts.amount0, metadata0.decimals));
     const amount1 = Number(formatUnits(amounts.amount1, metadata1.decimals));
-    const amount0Usd = amount0 * getTokenPrice(metadata0.symbol);
-    const amount1Usd = amount1 * getTokenPrice(metadata1.symbol);
+    const [price0, price1] = await Promise.all([
+      getTokenPrice(metadata0.symbol),
+      getTokenPrice(metadata1.symbol),
+    ]);
+    const amount0Usd = amount0 * price0.price;
+    const amount1Usd = amount1 * price1.price;
     const amountUsd = amount0Usd + amount1Usd;
+
+    // tokensOwed0/1 are the position's own unclaimed-fee accounting, read
+    // directly from the NonfungiblePositionManager. Note this reflects fees
+    // as of the last time the position was touched (mint/increase/decrease/
+    // collect), not a live per-second accrual — see feeAprUnavailableReason
+    // below for why we don't try to extrapolate a rate from a single read.
+    const unclaimedFee0 = Number(formatUnits(tokensOwed0, metadata0.decimals));
+    const unclaimedFee1 = Number(formatUnits(tokensOwed1, metadata1.decimals));
+    const unclaimedFee0Usd = unclaimedFee0 * price0.price;
+    const unclaimedFee1Usd = unclaimedFee1 * price1.price;
+
+    const feeTierPercent = fee / 10_000;
+    const inRange = currentTick >= tickLower && currentTick < tickUpper;
 
     return {
       protocol: "Uniswap",
@@ -151,11 +180,32 @@ async function readPosition(tokenId: bigint): Promise<TreasuryPosition | null> {
         symbol0: metadata0.symbol,
         symbol1: metadata1.symbol,
         fee,
+        feeTierPercent,
         tickLower,
         tickUpper,
         currentTick,
         sqrtPriceX96: sqrtPriceX96.toString(),
         liquidity: liquidity.toString(),
+        inRange,
+        unclaimedFees: {
+          [metadata0.symbol]: unclaimedFee0Usd,
+          [metadata1.symbol]: unclaimedFee1Usd,
+          totalUsd: unclaimedFee0Usd + unclaimedFee1Usd,
+        },
+        positionEfficiency: getCapitalEfficiencyMultiplier(tickLower, tickUpper),
+        impermanentLoss: {
+          value: null,
+          reason:
+            "Requires the position's entry price/amounts (from its Mint or " +
+            "IncreaseLiquidity event); not tracked by this scanner yet.",
+        },
+        feeApr: {
+          value: null,
+          reason:
+            "Requires two time-stamped fee readings (or indexed Collect " +
+            "events) to compute a real rate; a single snapshot has no " +
+            "elapsed-time baseline to annualize.",
+        },
       },
     };
   } catch {
@@ -282,6 +332,28 @@ function getAmount1ForLiquidity(
 
 function sortSqrtRatios(a: bigint, b: bigint): [bigint, bigint] {
   return a < b ? [a, b] : [b, a];
+}
+
+// Capital efficiency vs. an equivalent full-range (Uniswap v2-style)
+// position at the same liquidity, following the standard Uniswap V3
+// concentrated-liquidity formula: multiplier = 1 / (1 - sqrt(Pa/Pb)).
+// sqrtRatioAtTick already encodes sqrt(price) in Q64.96 fixed point, so
+// sqrt(Pa/Pb) is simply the ratio of the two — no extra squaring/rooting
+// needed. This is a widely-used derived metric, not a value any contract
+// exposes directly; treat it as an analytical estimate.
+function getCapitalEfficiencyMultiplier(
+  tickLower: number,
+  tickUpper: number
+): number | null {
+  const sqrtRatioA = getSqrtRatioAtTick(tickLower);
+  const sqrtRatioB = getSqrtRatioAtTick(tickUpper);
+
+  if (sqrtRatioB === ZERO_BALANCE) return null;
+
+  const ratio = Number(sqrtRatioA) / Number(sqrtRatioB);
+  if (!Number.isFinite(ratio) || ratio >= 1) return null;
+
+  return 1 / (1 - ratio);
 }
 
 function getSqrtRatioAtTick(tick: number): bigint {

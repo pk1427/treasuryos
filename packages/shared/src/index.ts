@@ -9,7 +9,7 @@ export type TreasuryPosition = {
     amount: number;
     amountUsd: number;
   }[];
-  metadata?: Record<string, string | number | boolean>;
+  metadata?: Record<string, unknown>;
 };
 
 export type TreasurySnapshot = {
@@ -48,6 +48,18 @@ export type RiskReport = {
   score: RiskScore;
   stressResults: StressResult[];
   generatedAt: string;
+};
+
+export type AaveAccountSummary = {
+  healthFactor: number | null;
+  currentLtvPercent: number;
+  liquidationThresholdPercent: number;
+  availableBorrowUsd: number;
+  totalCollateralUsd: number;
+  totalDebtUsd: number;
+  collateralStatus: "No Debt" | "Healthy" | "At Risk" | "Liquidatable";
+  rewardsUsd: number;
+  rewardsSource: "live" | "not-supported";
 };
 
 export type AttestationSimulation = {
