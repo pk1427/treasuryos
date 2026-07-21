@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateRiskReport } from "@/lib/v1-report";
+import { executionPlanRepo } from "@/server/repositories";
 
 export const maxDuration = 60;
 const REPORT_GENERATION_TIMEOUT_MS = 55_000;
@@ -17,6 +18,17 @@ export async function POST(request: Request) {
       generateRiskReport(address),
       REPORT_GENERATION_TIMEOUT_MS
     );
+
+    try {
+      await executionPlanRepo.markStaleIfReportChanged(
+        address,
+        result.reportHash
+      );
+    } catch {
+      // Staleness check is best-effort; report generation must not fail
+      // just because the execution_plans table is unavailable.
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json(

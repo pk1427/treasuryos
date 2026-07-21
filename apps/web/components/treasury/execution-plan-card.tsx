@@ -4,12 +4,14 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Loader2, Lock } from "lucide-react";
+import { Brain, Loader2, RefreshCw } from "lucide-react";
 import type { ExecutionPlan, PlanStep } from "@/lib/ai/plan-types";
 
 type Props = {
   address: string;
 };
+
+type PlanStatus = "PLANNED" | "APPROVED" | "REJECTED" | "STALE";
 
 function actionLabel(action: PlanStep["action"]): string {
   switch (action) {
@@ -43,15 +45,50 @@ function actionVariant(action: PlanStep["action"]): "low" | "medium" | "high" | 
   }
 }
 
+function statusVariant(status: PlanStatus): "low" | "medium" | "high" | "critical" | "default" {
+  switch (status) {
+    case "PLANNED":
+      return "default";
+    case "APPROVED":
+      return "low";
+    case "REJECTED":
+      return "medium";
+    case "STALE":
+      return "critical";
+    default:
+      return "default";
+  }
+}
+
+function statusLabel(status: PlanStatus): string {
+  switch (status) {
+    case "PLANNED":
+      return "Planned — awaiting approval";
+    case "APPROVED":
+      return "Approved — awaiting execution (execution not yet available)";
+    case "REJECTED":
+      return "Rejected";
+    case "STALE":
+      return "Stale — treasury state has changed";
+    default:
+      return status;
+  }
+}
+
 export function ExecutionPlanCard({ address }: Props) {
   const [plan, setPlan] = useState<ExecutionPlan | null>(null);
+  const [planId, setPlanId] = useState<string | null>(null);
+  const [planStatus, setPlanStatus] = useState<PlanStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   async function loadPlan() {
     setLoading(true);
     setError(null);
     setPlan(null);
+    setPlanId(null);
+    setPlanStatus(null);
 
     try {
       const response = await fetch("/api/execution-plan", {
@@ -67,10 +104,60 @@ export function ExecutionPlanCard({ address }: Props) {
       }
 
       setPlan(data);
+      setPlanId(data.id ?? null);
+      setPlanStatus(data.status ?? "PLANNED");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Plan generation failed");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function approvePlan() {
+    if (!planId) return;
+    setActionLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/execution-plan/${planId}/approve`, {
+        method: "POST",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to approve plan");
+      }
+
+      setPlanStatus(data.status ?? "APPROVED");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Approval failed");
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function rejectPlan() {
+    if (!planId) return;
+    setActionLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/execution-plan/${planId}/reject`, {
+        method: "POST",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error ?? "Failed to reject plan");
+      }
+
+      setPlanStatus(data.status ?? "REJECTED");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Rejection failed");
+    } finally {
+      setActionLoading(false);
     }
   }
 
@@ -142,6 +229,10 @@ export function ExecutionPlanCard({ address }: Props) {
     );
   }
 
+  const isStale = planStatus === "STALE";
+  const isRejected = planStatus === "REJECTED";
+  const canAct = planStatus === "PLANNED" && !actionLoading;
+
   return (
     <Card>
       <CardHeader>
@@ -152,94 +243,134 @@ export function ExecutionPlanCard({ address }: Props) {
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="flex items-center gap-2">
-          <Badge variant="default" className="normal-case">
-            Status: {plan?.status}
+          <Badge variant={statusVariant(planStatus ?? "PLANNED")} className="normal-case">
+            Status: {planStatus ?? "PLANNED"}
           </Badge>
-          <Badge variant="medium" className="normal-case">
-            Requires Approval
-          </Badge>
+          {planStatus === "APPROVED" ? (
+            <span className="text-xs text-zinc-500">
+              {statusLabel("APPROVED")}
+            </span>
+          ) : null}
         </div>
 
-        {plan?.steps && plan.steps.length > 0 ? (
-          <div>
-            <p className="mb-3 text-xs font-medium uppercase text-zinc-500">
-              Planned Steps
+        {isStale ? (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+            <p className="text-sm text-amber-300">
+              This plan is out of date — treasury state has changed. Please regenerate.
             </p>
-            <div className="space-y-2">
-              {plan.steps.map((step) => (
-                <StepCard key={step.order} step={step} />
-              ))}
-            </div>
+            <Button
+              onClick={loadPlan}
+              className="mt-3"
+              variant="outline"
+              size="sm"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Regenerate Plan
+            </Button>
           </div>
         ) : (
-          <p className="text-sm text-zinc-500">No actionable steps generated.</p>
-        )}
-
-        {plan?.expectedOutcome ? (
-          <div>
-            <p className="mb-3 text-xs font-medium uppercase text-zinc-500">
-              Expected Outcome
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <OutcomeRow
-                label="Health Factor"
-                before={plan.expectedOutcome.healthFactorBefore}
-                after={plan.expectedOutcome.healthFactorAfter}
-                format={(v) => (v == null ? "N/A" : v.toFixed(2))}
-              />
-              <OutcomeRow
-                label="ETH Exposure"
-                before={plan.expectedOutcome.ethExposureBefore}
-                after={plan.expectedOutcome.ethExposureAfter}
-                format={(v) => `${((v ?? 0) * 100).toFixed(0)}%`}
-              />
-              <OutcomeRow
-                label="Stablecoin Ratio"
-                before={plan.expectedOutcome.stablecoinRatioBefore}
-                after={plan.expectedOutcome.stablecoinRatioAfter}
-                format={(v) => `${((v ?? 0) * 100).toFixed(0)}%`}
-              />
-            </div>
-          </div>
-        ) : null}
-
-        {plan?.warnings && plan.warnings.length > 0 ? (
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase text-zinc-500">
-              Warnings
-            </p>
-            <div className="space-y-1">
-              {plan.warnings.map((warning, index) => (
-                <p key={index} className="text-xs text-amber-400">
-                  {warning}
+          <>
+            {plan?.steps && plan.steps.length > 0 ? (
+              <div>
+                <p className="mb-3 text-xs font-medium uppercase text-zinc-500">
+                  Planned Steps
                 </p>
-              ))}
+                <div className="space-y-2">
+                  {plan.steps.map((step) => (
+                    <StepCard key={step.order} step={step} />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-500">No actionable steps generated.</p>
+            )}
+
+            {plan?.expectedOutcome ? (
+              <div>
+                <p className="mb-3 text-xs font-medium uppercase text-zinc-500">
+                  Expected Outcome
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <OutcomeRow
+                    label="Health Factor"
+                    before={plan.expectedOutcome.healthFactorBefore}
+                    after={plan.expectedOutcome.healthFactorAfter}
+                    format={(v) => (v == null ? "∞ (No Debt)" : v.toFixed(2))}
+                  />
+                  <OutcomeRow
+                    label="ETH Exposure"
+                    before={plan.expectedOutcome.ethExposureBefore}
+                    after={plan.expectedOutcome.ethExposureAfter}
+                    format={(v) => `${((v ?? 0) * 100).toFixed(0)}%`}
+                  />
+                  <OutcomeRow
+                    label="Stablecoin Ratio"
+                    before={plan.expectedOutcome.stablecoinRatioBefore}
+                    after={plan.expectedOutcome.stablecoinRatioAfter}
+                    format={(v) => `${((v ?? 0) * 100).toFixed(0)}%`}
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {plan?.warnings && plan.warnings.length > 0 ? (
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase text-zinc-500">
+                  Warnings
+                </p>
+                <div className="space-y-1">
+                  {plan.warnings.map((warning, index) => (
+                    <p key={index} className="text-xs text-amber-400">
+                      {warning}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {canAct ? (
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={approvePlan}
+                  disabled={actionLoading}
+                  variant="default"
+                >
+                  {actionLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
+                  Approve
+                </Button>
+                <Button
+                  onClick={rejectPlan}
+                  disabled={actionLoading}
+                  variant="outline"
+                >
+                  Reject
+                </Button>
+              </div>
+            ) : null}
+
+            {isRejected ? (
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={loadPlan}
+                  variant="outline"
+                  size="sm"
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Generate New Plan
+                </Button>
+              </div>
+            ) : null}
+
+            <div className="rounded-lg border border-white/10 bg-black/20 p-3">
+              <p className="text-xs text-zinc-500">
+                Approving a plan does not move funds. Execution is a separate,
+                not-yet-available step that will require a wallet signature.
+              </p>
             </div>
-          </div>
-        ) : null}
-
-        <div className="flex items-center gap-3">
-          <Button disabled className="opacity-50 cursor-not-allowed">
-            <Lock className="h-4 w-4 mr-2" />
-            Approve & Execute
-          </Button>
-          <span className="text-xs text-zinc-500">
-            Coming in v5.1 — not yet functional
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            onClick={loadPlan}
-            variant="outline"
-            size="sm"
-          >
-            Regenerate Plan
-          </Button>
-          <span className="text-xs text-zinc-500">
-            Plan is read-only and does not execute actions.
-          </span>
-        </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );

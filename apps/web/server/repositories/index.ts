@@ -1,4 +1,4 @@
-import { and, desc, eq, type SQL } from "drizzle-orm";
+import { and, desc, eq, ne, type SQL } from "drizzle-orm";
 import { requireDb, schema } from "@/lib/db";
 import type { RiskLevel, DecisionStatus, ExecutionStatus } from "@/types";
 
@@ -315,8 +315,85 @@ export class AttestationRepository {
   }
 }
 
+export class ExecutionPlanRepository {
+  async create(data: {
+    walletAddress: string;
+    reportHash: string;
+    planJson: string;
+  }) {
+    const db = requireDb();
+    const [plan] = await db
+      .insert(schema.executionPlans)
+      .values({
+        walletAddress: data.walletAddress.toLowerCase(),
+        reportHash: data.reportHash,
+        planJson: data.planJson,
+        status: "PLANNED",
+      })
+      .returning();
+    return plan;
+  }
+
+  async findById(id: string) {
+    const db = requireDb();
+    const [plan] = await db
+      .select()
+      .from(schema.executionPlans)
+      .where(eq(schema.executionPlans.id, id));
+    return plan ?? null;
+  }
+
+  async getLatestByWallet(walletAddress: string) {
+    const db = requireDb();
+    const results = await db
+      .select()
+      .from(schema.executionPlans)
+      .where(eq(schema.executionPlans.walletAddress, walletAddress.toLowerCase()))
+      .orderBy(desc(schema.executionPlans.createdAt))
+      .limit(1);
+    return results[0] ?? null;
+  }
+
+  async updateStatus(id: string, status: "APPROVED" | "REJECTED" | "STALE") {
+    const db = requireDb();
+    const updates: Record<string, unknown> = { status };
+
+    if (status === "APPROVED") {
+      updates.approvedAt = new Date();
+      updates.rejectedAt = null;
+    } else if (status === "REJECTED") {
+      updates.rejectedAt = new Date();
+      updates.approvedAt = null;
+    }
+
+    const [plan] = await db
+      .update(schema.executionPlans)
+      .set(updates)
+      .where(eq(schema.executionPlans.id, id))
+      .returning();
+    return plan ?? null;
+  }
+
+  async markStaleIfReportChanged(walletAddress: string, currentReportHash: string) {
+    const db = requireDb();
+    const [plan] = await db
+      .update(schema.executionPlans)
+      .set({ status: "STALE" })
+      .where(
+        and(
+          eq(schema.executionPlans.walletAddress, walletAddress.toLowerCase()),
+          eq(schema.executionPlans.status, "APPROVED"),
+          ne(schema.executionPlans.reportHash, currentReportHash)
+        )
+      )
+      .returning();
+    return plan ?? null;
+  }
+}
+
 export const treasuryRepo = new TreasuryRepository();
 export const analysisRepo = new AnalysisRepository();
 export const decisionRepo = new DecisionRepository();
 export const executionRepo = new ExecutionRepository();
 export const attestationRepo = new AttestationRepository();
+export const executionPlanRepo = new ExecutionPlanRepository();

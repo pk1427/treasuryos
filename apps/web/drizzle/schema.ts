@@ -32,6 +32,13 @@ export const executionStatusEnum = pgEnum("execution_status", [
   "failed",
 ]);
 
+export const executionPlanStatusEnum = pgEnum("execution_plan_status", [
+  "PLANNED",
+  "APPROVED",
+  "REJECTED",
+  "STALE",
+]);
+
 export const treasuries = pgTable("treasuries", {
   id: uuid("id").defaultRandom().primaryKey(),
   protocolName: text("protocol_name").notNull(),
@@ -125,6 +132,28 @@ export const attestations = pgTable(
   })
 );
 
+export const executionPlans = pgTable(
+  "execution_plans",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    walletAddress: text("wallet_address").notNull(),
+    reportHash: text("report_hash").notNull(),
+    planJson: text("plan_json").notNull(),
+    status: executionPlanStatusEnum("status").notNull().default("PLANNED"),
+    approvedAt: timestamp("approved_at"),
+    rejectedAt: timestamp("rejected_at"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    walletIdx: index("execution_plans_wallet_idx").on(table.walletAddress),
+    walletReportIdx: index("execution_plans_wallet_report_idx").on(
+      table.walletAddress,
+      table.reportHash
+    ),
+    statusIdx: index("execution_plans_status_idx").on(table.status),
+  })
+);
+
 export const treasuriesRelations = relations(treasuries, ({ many }) => ({
   assets: many(assets),
   analyses: many(analyses),
@@ -159,3 +188,5 @@ export const executionsRelations = relations(executions, ({ one }) => ({
     references: [decisions.id],
   }),
 }));
+
+export const executionPlansRelations = relations(executionPlans, () => ({}));
