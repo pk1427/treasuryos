@@ -30,9 +30,30 @@ export async function generateRiskReport(address: string): Promise<{
     riskV2,
   };
 
+  const reportForHash = stripTimestamps(report);
+
   return {
     report,
-    reportHash: hashRiskReport(report),
+    reportHash: hashRiskReport(reportForHash as RiskReport),
     riskV2,
   };
+}
+
+function stripTimestamps(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(stripTimestamps);
+  }
+
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value).map(([key, child]) => {
+      if (key === "generatedAt" || key === "fetchedAt") {
+        return [key, "deterministic"];
+      }
+      return [key, stripTimestamps(child)];
+    });
+
+    return Object.fromEntries(entries);
+  }
+
+  return value;
 }

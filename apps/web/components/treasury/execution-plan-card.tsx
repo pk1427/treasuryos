@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Brain, Loader2, RefreshCw } from "lucide-react";
 import type { ExecutionPlan, PlanStep } from "@/lib/ai/plan-types";
+import type { PlanSimulationResult } from "@/lib/ai/plan-simulation";
 
 type Props = {
   address: string;
@@ -82,6 +83,8 @@ export function ExecutionPlanCard({ address }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
+  const [simulation, setSimulation] = useState<PlanSimulationResult | null>(null);
+  const [simulating, setSimulating] = useState(false);
 
   async function loadPlan() {
     setLoading(true);
@@ -158,6 +161,34 @@ export function ExecutionPlanCard({ address }: Props) {
       setError(caught instanceof Error ? caught.message : "Rejection failed");
     } finally {
       setActionLoading(false);
+    }
+  }
+
+  async function simulatePlan() {
+    if (!planId) return;
+    setSimulating(true);
+    setError(null);
+    setSimulation(null);
+
+    try {
+      const response = await fetch(`/api/execution-plan/${planId}/simulate`, {
+        method: "POST",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (data.stale) {
+          setPlanStatus("STALE");
+        }
+        throw new Error(data.error ?? "Failed to simulate plan");
+      }
+
+      setSimulation(data);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Simulation failed");
+    } finally {
+      setSimulating(false);
     }
   }
 
@@ -310,6 +341,104 @@ export function ExecutionPlanCard({ address }: Props) {
                     format={(v) => `${((v ?? 0) * 100).toFixed(0)}%`}
                   />
                 </div>
+              </div>
+            ) : null}
+
+            {planStatus === "APPROVED" && !simulation ? (
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={simulatePlan}
+                  disabled={simulating}
+                  variant="secondary"
+                >
+                  {simulating ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
+                  Simulate
+                </Button>
+                <span className="text-xs text-zinc-500">
+                  Simulation does not move funds. It estimates what would happen
+                  if this plan were executed, using KeeperHub&apos;s simulation
+                  endpoint.
+                </span>
+              </div>
+            ) : null}
+
+            {simulation ? (
+              <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                <p className="mb-3 text-xs font-medium uppercase text-zinc-500">
+                  Simulation Results
+                </p>
+                {simulation.snapshotWarning ? (
+                  <div className="mb-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+                    <p className="text-xs text-amber-300">{simulation.snapshotWarning}</p>
+                  </div>
+                ) : null}
+                <div className="mb-3 flex items-center gap-2">
+                  <Badge
+                    variant={simulation.overallSuccess ? "low" : "critical"}
+                    className="normal-case"
+                  >
+                    {simulation.overallSuccess
+                      ? "All steps passed"
+                      : "Issues detected"}
+                  </Badge>
+                </div>
+                <div className="space-y-2">
+                  {simulation.steps.map((step) => (
+                    <div
+                      key={step.order}
+                      className="flex items-start gap-2 rounded-lg border border-white/5 bg-white/[0.02] p-2"
+                    >
+                      <Badge
+                        variant={step.success ? "low" : "critical"}
+                        className="normal-case"
+                      >
+                        #{step.order} {step.success ? "Passed" : "Failed"}
+                      </Badge>
+                      <div className="flex-1">
+                        <p className="text-sm text-zinc-200">
+                          {step.protocol} / {step.action}
+                        </p>
+                        {step.estimatedGas ? (
+                          <p className="text-xs text-zinc-400">
+                            Gas: {step.estimatedGas}
+                          </p>
+                        ) : null}
+                        {step.note ? (
+                          <p className="text-xs text-zinc-500">{step.note}</p>
+                        ) : null}
+                        {step.error ? (
+                          <p className="text-xs text-red-400">{step.error}</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {simulation.warnings.length > 0 ? (
+                  <div className="mt-3">
+                    <p className="mb-1 text-xs font-medium uppercase text-zinc-500">
+                      Warnings
+                    </p>
+                    <div className="space-y-1">
+                      {simulation.warnings.map((warning, index) => (
+                        <p key={index} className="text-xs text-amber-400">
+                          {warning}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {simulation.projectedFinalState ? (
+                  <div className="mt-3">
+                    <p className="mb-1 text-xs font-medium uppercase text-zinc-500">
+                      Projected Final State
+                    </p>
+                    <pre className="text-xs text-zinc-300">
+                      {JSON.stringify(simulation.projectedFinalState, null, 2)}
+                    </pre>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 

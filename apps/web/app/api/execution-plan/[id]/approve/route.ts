@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { executionPlanRepo } from "@/server/repositories";
+import { scanTreasury } from "@treasuryos/indexer";
 
 export async function POST(
   _request: Request,
@@ -26,7 +27,10 @@ export async function POST(
     }
 
     try {
-      const updated = await executionPlanRepo.updateStatus(id, "APPROVED");
+      const snapshot = await scanTreasury(plan.walletAddress);
+      const updated = await executionPlanRepo.updateStatus(id, "APPROVED", {
+        snapshot,
+      });
 
       if (!updated) {
         return NextResponse.json(

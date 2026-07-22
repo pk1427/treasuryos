@@ -8,6 +8,7 @@ import {
   pgEnum,
   index,
   uniqueIndex,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 
@@ -142,6 +143,10 @@ export const executionPlans = pgTable(
     status: executionPlanStatusEnum("status").notNull().default("PLANNED"),
     approvedAt: timestamp("approved_at"),
     rejectedAt: timestamp("rejected_at"),
+    simulatedAt: timestamp("simulated_at"),
+    simulationResult: jsonb("simulation_result"),
+    approvedSnapshot: jsonb("approved_snapshot"),
+    approvedSnapshotAt: timestamp("approved_snapshot_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({

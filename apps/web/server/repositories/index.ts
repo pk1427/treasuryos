@@ -354,13 +354,21 @@ export class ExecutionPlanRepository {
     return results[0] ?? null;
   }
 
-  async updateStatus(id: string, status: "APPROVED" | "REJECTED" | "STALE") {
+  async updateStatus(
+    id: string,
+    status: "APPROVED" | "REJECTED" | "STALE",
+    options?: { snapshot?: unknown }
+  ) {
     const db = requireDb();
     const updates: Record<string, unknown> = { status };
 
     if (status === "APPROVED") {
       updates.approvedAt = new Date();
       updates.rejectedAt = null;
+      if (options?.snapshot) {
+        updates.approvedSnapshot = JSON.stringify(options.snapshot);
+        updates.approvedSnapshotAt = new Date();
+      }
     } else if (status === "REJECTED") {
       updates.rejectedAt = new Date();
       updates.approvedAt = null;
@@ -387,6 +395,31 @@ export class ExecutionPlanRepository {
         )
       )
       .returning();
+    return plan ?? null;
+  }
+
+  async saveSimulationResult(
+    id: string,
+    simulationResult: Record<string, unknown>
+  ) {
+    const db = requireDb();
+    const [plan] = await db
+      .update(schema.executionPlans)
+      .set({
+        simulationResult: JSON.stringify(simulationResult),
+        simulatedAt: new Date(),
+      })
+      .where(eq(schema.executionPlans.id, id))
+      .returning();
+    return plan ?? null;
+  }
+
+  async findByIdWithSnapshot(id: string) {
+    const db = requireDb();
+    const [plan] = await db
+      .select()
+      .from(schema.executionPlans)
+      .where(eq(schema.executionPlans.id, id));
     return plan ?? null;
   }
 }
