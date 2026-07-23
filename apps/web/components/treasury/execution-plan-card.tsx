@@ -333,8 +333,9 @@ export function ExecutionPlanCard({ address }: Props) {
   const isRejected = planStatus === "REJECTED";
   const isConnected = !!walletAddress;
   const walletMatches = isConnected && walletAddress.toLowerCase() === address.toLowerCase();
-  const canAct = planStatus === "PLANNED" && !actionLoading && walletMatches;
-  const canSign = planStatus === "APPROVED" && !!simulation && !signed && !actionLoading && walletMatches;
+  const planHasSteps = Boolean(plan?.steps && plan.steps.length > 0);
+  const canAct = planStatus === "PLANNED" && !actionLoading && walletMatches && planHasSteps;
+  const canSign = planStatus === "APPROVED" && !!simulation && !signed && !actionLoading && walletMatches && planHasSteps;
 
   return (
     <Card>
@@ -388,7 +389,7 @@ export function ExecutionPlanCard({ address }: Props) {
               <p className="text-sm text-zinc-500">No actionable steps generated.</p>
             )}
 
-            {plan?.expectedOutcome ? (
+            {plan?.expectedOutcome && planHasSteps ? (
               <div>
                 <p className="mb-3 text-xs font-medium uppercase text-zinc-500">
                   Expected Outcome
@@ -451,9 +452,11 @@ export function ExecutionPlanCard({ address }: Props) {
                     variant={simulation.overallSuccess ? "low" : "critical"}
                     className="normal-case"
                   >
-                    {simulation.overallSuccess
-                      ? "All steps passed"
-                      : "Issues detected"}
+                    {!planHasSteps
+                      ? "No steps to simulate"
+                      : simulation.overallSuccess
+                        ? "All steps passed"
+                        : "Issues detected"}
                   </Badge>
                   {simulation.simulationMode === "viem-user-context" ? (
                     <Badge variant="medium" className="normal-case">
@@ -570,17 +573,22 @@ export function ExecutionPlanCard({ address }: Props) {
                </div>
              ) : null}
 
-             {planStatus === "SIGNED" ? (
-               <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
-                 <p className="text-sm text-emerald-300">
-                   Signed — awaiting execution (execution not yet available)
-                 </p>
-                 <p className="text-xs text-zinc-400 mt-1">
-                   Signing this intent does not execute any transaction or move funds.
-                   Real execution requires a separate step not yet available.
-                 </p>
-               </div>
-             ) : null}
+              {planStatus === "SIGNED" ? (
+                <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+                  <p className="text-sm text-emerald-300">
+                    Signed — awaiting execution (execution not yet available)
+                  </p>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Signing this intent does not execute any transaction or move funds.
+                    Real execution requires a separate step not yet available.
+                  </p>
+                  {!planHasSteps ? (
+                    <p className="text-xs text-amber-400 mt-2">
+                      This plan has no actionable steps. Regenerate the plan to get a new execution plan.
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
 
              {isStale && signed ? (
                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
@@ -654,18 +662,31 @@ export function ExecutionPlanCard({ address }: Props) {
               </div>
             ) : null}
 
-            {isRejected ? (
-              <div className="flex items-center gap-3">
-                <Button
-                  onClick={loadPlan}
-                  variant="outline"
-                  size="sm"
-                >
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Generate New Plan
-                </Button>
-              </div>
-            ) : null}
+             {isRejected ? (
+               <div className="flex items-center gap-3">
+                 <Button
+                   onClick={loadPlan}
+                   variant="outline"
+                   size="sm"
+                 >
+                   <RefreshCw className="h-4 w-4 mr-2" />
+                   Generate New Plan
+                 </Button>
+               </div>
+             ) : null}
+
+             {planStatus === "SIGNED" && !planHasSteps ? (
+               <div className="flex items-center gap-3">
+                 <Button
+                   onClick={loadPlan}
+                   variant="outline"
+                   size="sm"
+                 >
+                   <RefreshCw className="h-4 w-4 mr-2" />
+                   Regenerate Plan
+                 </Button>
+               </div>
+             ) : null}
 
             <div className="rounded-lg border border-white/10 bg-black/20 p-3">
               <p className="text-xs text-zinc-500">
