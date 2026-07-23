@@ -7,11 +7,14 @@ import type { TreasurySnapshot } from "@treasuryos/shared";
 export const maxDuration = 60;
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
+    const body = await request.json().catch(() => ({}));
+    const requestWalletAddress = body.walletAddress;
+
     const planRecord = await executionPlanRepo.findById(id);
 
     if (!planRecord) {
@@ -27,6 +30,19 @@ export async function POST(
           error: `Simulation is only available for APPROVED plans. Current status: ${planRecord.status}`,
         },
         { status: 409 }
+      );
+    }
+
+    if (
+      !requestWalletAddress ||
+      typeof requestWalletAddress !== "string" ||
+      requestWalletAddress.toLowerCase() !== planRecord.walletAddress.toLowerCase()
+    ) {
+      return NextResponse.json(
+        {
+          error: `Wallet mismatch. This plan belongs to ${planRecord.walletAddress}. Connect that wallet to simulate.`,
+        },
+        { status: 403 }
       );
     }
 

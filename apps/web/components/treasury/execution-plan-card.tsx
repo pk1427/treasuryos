@@ -134,6 +134,8 @@ export function ExecutionPlanCard({ address }: Props) {
     try {
       const response = await fetch(`/api/execution-plan/${planId}/approve`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: walletAddress ? JSON.stringify({ walletAddress }) : undefined,
       });
 
       const data = await response.json();
@@ -158,6 +160,8 @@ export function ExecutionPlanCard({ address }: Props) {
     try {
       const response = await fetch(`/api/execution-plan/${planId}/reject`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: walletAddress ? JSON.stringify({ walletAddress }) : undefined,
       });
 
       const data = await response.json();
@@ -183,6 +187,8 @@ export function ExecutionPlanCard({ address }: Props) {
     try {
       const response = await fetch(`/api/execution-plan/${planId}/simulate`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: walletAddress ? JSON.stringify({ walletAddress }) : undefined,
       });
 
       const data = await response.json();
@@ -325,8 +331,10 @@ export function ExecutionPlanCard({ address }: Props) {
 
   const isStale = planStatus === "STALE";
   const isRejected = planStatus === "REJECTED";
-  const canAct = planStatus === "PLANNED" && !actionLoading;
-  const canSign = planStatus === "APPROVED" && !!simulation && !signed && !actionLoading;
+  const isConnected = !!walletAddress;
+  const walletMatches = isConnected && walletAddress.toLowerCase() === address.toLowerCase();
+  const canAct = planStatus === "PLANNED" && !actionLoading && walletMatches;
+  const canSign = planStatus === "APPROVED" && !!simulation && !signed && !actionLoading && walletMatches;
 
   return (
     <Card>
@@ -593,9 +601,29 @@ export function ExecutionPlanCard({ address }: Props) {
                    ))}
                  </div>
                </div>
+              ) : null}
+
+             {!isConnected ? (
+               <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                 <p className="text-sm text-amber-300">
+                   Connect the treasury owner&apos;s wallet to enable actions.
+                 </p>
+               </div>
+             ) : !walletMatches ? (
+               <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+                 <p className="text-sm text-red-300">
+                   Connected wallet does not match the treasury being analyzed.
+                 </p>
+                 <p className="text-xs text-zinc-400 mt-1">
+                   Scanned: {address.slice(0, 6)}...{address.slice(-4)}
+                 </p>
+                 <p className="text-xs text-zinc-400">
+                   Connected: {walletAddress?.slice(0, 6)}...{walletAddress?.slice(-4)}
+                 </p>
+               </div>
              ) : null}
 
-            {canAct || canSign ? (
+             {canAct || canSign ? (
               <div className="flex items-center gap-3">
                 {canAct ? (
                   <>

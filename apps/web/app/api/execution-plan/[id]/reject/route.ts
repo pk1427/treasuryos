@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 import { executionPlanRepo } from "@/server/repositories";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
+    const body = await request.json().catch(() => ({}));
+    const requestWalletAddress = body.walletAddress;
+
     const plan = await executionPlanRepo.findById(id);
 
     if (!plan) {
@@ -22,6 +25,19 @@ export async function POST(
           error: `Cannot reject plan with status: ${plan.status}. Only PLANNED plans can be rejected.`,
         },
         { status: 409 }
+      );
+    }
+
+    if (
+      !requestWalletAddress ||
+      typeof requestWalletAddress !== "string" ||
+      requestWalletAddress.toLowerCase() !== plan.walletAddress.toLowerCase()
+    ) {
+      return NextResponse.json(
+        {
+          error: `Wallet mismatch. This plan belongs to ${plan.walletAddress}. Connect that wallet to reject.`,
+        },
+        { status: 403 }
       );
     }
 
