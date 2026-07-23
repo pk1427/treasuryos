@@ -95,4 +95,19 @@ These were identified during v5.4 testing but could not be closed due to test-se
 
 ---
 
+## 9. Aave public UI only exposes Base Sepolia, not Ethereum Sepolia ( blocker for execution-path testing )
+
+- **What happened:** During v5.4 close-gap testing, the Aave public UI (`app.aave.com`) was confirmed to only expose Base Sepolia (`marketId=base_sepolia_v3`), not Ethereum Sepolia. TreasuryOS's execution/simulation path is built around the Ethereum Sepolia Aave V3 pool (`0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951`).
+- **Impact:** We cannot perform end-to-end supply/borrow/repay testing on Ethereum Sepolia through Aave's public frontend. This blocks:
+  - Creating a real Aave debt position on Ethereum Sepolia for simulation testing
+  - Triggering real stale-marking via Aave interest accrual on Ethereum Sepolia
+- **Not a TreasuryOS bug:** The protocol adapter, pool address, and simulation logic are all correctly configured for Ethereum Sepolia. The limitation is that Aave's public UI does not expose that market for interactive testing.
+- **Workarounds (not yet implemented):**
+  - Use Aave's official SDK directly against Ethereum Sepolia RPC instead of the public UI
+  - Switch testing to Base Sepolia and update TreasuryOS chain configuration accordingly
+  - Use hardhat/anvil local fork of Ethereum Sepolia for controlled test scenarios
+- **Carrying forward:** This is a test-infrastructure blocker, not a code defect. It does not block v5.5 scoping, but it does mean end-to-end execution-path testing requires one of the workarounds above before v5.5 can be fully validated.
+
+---
+
 *Last updated: 2026-07-23 — covers v5.0 through v5.4.*
