@@ -333,9 +333,8 @@ export function ExecutionPlanCard({ address }: Props) {
   const isRejected = planStatus === "REJECTED";
   const isConnected = !!walletAddress;
   const walletMatches = isConnected && walletAddress.toLowerCase() === address.toLowerCase();
-  const planHasSteps = Boolean(plan?.steps && plan.steps.length > 0);
-  const canAct = planStatus === "PLANNED" && !actionLoading && walletMatches && planHasSteps;
-  const canSign = planStatus === "APPROVED" && !!simulation && !signed && !actionLoading && walletMatches && planHasSteps;
+  const canAct = planStatus === "PLANNED" && !actionLoading && walletMatches;
+  const canSign = planStatus === "APPROVED" && !!simulation && !signed && !actionLoading && walletMatches;
 
   return (
     <Card>
@@ -389,7 +388,7 @@ export function ExecutionPlanCard({ address }: Props) {
               <p className="text-sm text-zinc-500">No actionable steps generated.</p>
             )}
 
-            {plan?.expectedOutcome && planHasSteps ? (
+            {plan?.expectedOutcome ? (
               <div>
                 <p className="mb-3 text-xs font-medium uppercase text-zinc-500">
                   Expected Outcome
@@ -452,11 +451,9 @@ export function ExecutionPlanCard({ address }: Props) {
                     variant={simulation.overallSuccess ? "low" : "critical"}
                     className="normal-case"
                   >
-                    {!planHasSteps
-                      ? "No steps to simulate"
-                      : simulation.overallSuccess
-                        ? "All steps passed"
-                        : "Issues detected"}
+                    {simulation.overallSuccess
+                      ? "All steps passed"
+                      : "Issues detected"}
                   </Badge>
                   {simulation.simulationMode === "viem-user-context" ? (
                     <Badge variant="medium" className="normal-case">
@@ -582,11 +579,6 @@ export function ExecutionPlanCard({ address }: Props) {
                     Signing this intent does not execute any transaction or move funds.
                     Real execution requires a separate step not yet available.
                   </p>
-                  {!planHasSteps ? (
-                    <p className="text-xs text-amber-400 mt-2">
-                      This plan has no actionable steps. Regenerate the plan to get a new execution plan.
-                    </p>
-                  ) : null}
                 </div>
               ) : null}
 
@@ -671,19 +663,6 @@ export function ExecutionPlanCard({ address }: Props) {
                  >
                    <RefreshCw className="h-4 w-4 mr-2" />
                    Generate New Plan
-                 </Button>
-               </div>
-             ) : null}
-
-             {planStatus === "SIGNED" && !planHasSteps ? (
-               <div className="flex items-center gap-3">
-                 <Button
-                   onClick={loadPlan}
-                   variant="outline"
-                   size="sm"
-                 >
-                   <RefreshCw className="h-4 w-4 mr-2" />
-                   Regenerate Plan
                  </Button>
                </div>
              ) : null}
