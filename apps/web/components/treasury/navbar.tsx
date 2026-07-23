@@ -18,7 +18,7 @@ export function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const network = process.env.NEXT_PUBLIC_CHAIN ?? "sepolia";
-  const { address, isConnected, isConnecting, connect, disconnect } = useWallet();
+  const { address, isConnected, isConnecting, error, connect, disconnect } = useWallet();
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-zinc-950/70 backdrop-blur-xl">
@@ -69,15 +69,22 @@ export function Navbar() {
               </Button>
             </div>
           ) : (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={connect}
-              disabled={isConnecting}
-            >
-              <Wallet className="h-4 w-4 mr-2" />
-              {isConnecting ? "Connecting..." : "Connect Wallet"}
-            </Button>
+            <div className="flex flex-col items-end gap-1">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={connect}
+                disabled={isConnecting}
+              >
+                <Wallet className="h-4 w-4 mr-2" />
+                {isConnecting ? "Connecting..." : "Connect Wallet"}
+              </Button>
+              {error ? (
+                <span className="max-w-[200px] truncate text-xs text-red-400" title={error}>
+                  {error}
+                </span>
+              ) : null}
+            </div>
           )}
         </div>
 
@@ -126,16 +133,23 @@ export function Navbar() {
                 </Button>
               </div>
             ) : (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={connect}
-                disabled={isConnecting}
-                className="w-full"
-              >
-                <Wallet className="h-4 w-4 mr-2" />
-                {isConnecting ? "Connecting..." : "Connect Wallet"}
-              </Button>
+              <div className="flex flex-col gap-1">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={connect}
+                  disabled={isConnecting}
+                  className="w-full"
+                >
+                  <Wallet className="h-4 w-4 mr-2" />
+                  {isConnecting ? "Connecting..." : "Connect Wallet"}
+                </Button>
+                {error ? (
+                  <span className="max-w-[200px] truncate text-xs text-red-400" title={error}>
+                    {error}
+                  </span>
+                ) : null}
+              </div>
             )}
           </div>
         </div>

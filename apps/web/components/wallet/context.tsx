@@ -32,9 +32,16 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         throw new Error("No wallet detected. Please install MetaMask or another Web3 wallet.");
       }
 
-      const accounts = (await ethereum.request({
+      const timeoutMs = 15_000;
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Wallet connection timed out. The wallet extension may be unresponsive. Try refreshing or using a different wallet.")), timeoutMs)
+      );
+
+      const accountsPromise = ethereum.request({
         method: "eth_requestAccounts",
-      })) as string[];
+      }) as Promise<string[]>;
+
+      const accounts = await Promise.race([accountsPromise, timeoutPromise]);
 
       if (accounts.length === 0) {
         throw new Error("No accounts found. Please unlock your wallet.");
