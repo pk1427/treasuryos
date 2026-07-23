@@ -7,12 +7,13 @@ import { Badge } from "@/components/ui/badge";
 import { Brain, Loader2, RefreshCw } from "lucide-react";
 import type { ExecutionPlan, PlanStep } from "@/lib/ai/plan-types";
 import type { PlanSimulationResult } from "@/lib/ai/plan-simulation";
+import { useWallet } from "@/components/wallet/context";
 
 type Props = {
   address: string;
 };
 
-type PlanStatus = "PLANNED" | "APPROVED" | "REJECTED" | "STALE";
+type PlanStatus = "PLANNED" | "APPROVED" | "SIGNED" | "REJECTED" | "STALE";
 
 function actionLabel(action: PlanStep["action"]): string {
   switch (action) {
@@ -52,6 +53,8 @@ function statusVariant(status: PlanStatus): "low" | "medium" | "high" | "critica
       return "default";
     case "APPROVED":
       return "low";
+    case "SIGNED":
+      return "low";
     case "REJECTED":
       return "medium";
     case "STALE":
@@ -67,6 +70,8 @@ function statusLabel(status: PlanStatus): string {
       return "Planned — awaiting approval";
     case "APPROVED":
       return "Approved — awaiting execution (execution not yet available)";
+    case "SIGNED":
+      return "Signed — awaiting execution (execution not yet available)";
     case "REJECTED":
       return "Rejected";
     case "STALE":
@@ -85,6 +90,11 @@ export function ExecutionPlanCard({ address }: Props) {
   const [actionLoading, setActionLoading] = useState(false);
   const [simulation, setSimulation] = useState<PlanSimulationResult | null>(null);
   const [simulating, setSimulating] = useState(false);
+  const [showSignPreview, setShowSignPreview] = useState(false);
+  const [signing, setSigning] = useState(false);
+  const [signError, setSignError] = useState<string | null>(null);
+  const [signed, setSigned] = useState(false);
+  const { address: walletAddress, signMessage } = useWallet();
 
   async function loadPlan() {
     setLoading(true);
@@ -192,6 +202,59 @@ export function ExecutionPlanCard({ address }: Props) {
     }
   }
 
+  async function signPlan() {
+    if (!planId || !plan) return;
+
+    if (!walletAddress) {
+      setSignError("Connect your wallet to sign this plan.");
+      return;
+    }
+
+    setSigning(true);
+    setSignError(null);
+
+    try {
+      const stepsSummary = plan.steps
+        .map((s) => `#${s.order} ${s.protocol}/${s.action} ${s.asset ?? s.fromAsset ?? ""}`)
+        .join("; ");
+
+      const message = `I confirm intent to execute TreasuryOS execution plan.\nPlan ID: ${planId}\nWallet: ${address}\nReport Hash: ${plan.basedOnReportHash}\nSteps: ${stepsSummary}\nTimestamp: ${new Date().toISOString()}\nThis signature does not execute any transaction.`;
+
+      const result = await signMessage(message);
+
+      if (!result) {
+        throw new Error("Wallet signature rejected or failed.");
+      }
+
+      const response = await fetch(`/api/execution-plan/${planId}/sign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          signerAddress: walletAddress,
+          signature: result.signature,
+          signedMessage: message,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (data.error?.includes("stale") || data.error?.includes("STALE")) {
+          setPlanStatus("STALE");
+        }
+        throw new Error(data.error ?? "Failed to sign plan");
+      }
+
+      setPlanStatus(data.status ?? "SIGNED");
+      setSigned(true);
+    } catch (caught) {
+      setSignError(caught instanceof Error ? caught.message : "Signing failed");
+    } finally {
+      setSigning(false);
+      setShowSignPreview(false);
+    }
+  }
+
   if (!plan && !loading && !error) {
     return (
       <Card>
@@ -263,6 +326,7 @@ export function ExecutionPlanCard({ address }: Props) {
   const isStale = planStatus === "STALE";
   const isRejected = planStatus === "REJECTED";
   const canAct = planStatus === "PLANNED" && !actionLoading;
+  const canSign = planStatus === "APPROVED" && !!simulation && !signed && !actionLoading;
 
   return (
     <Card>
@@ -429,53 +493,131 @@ export function ExecutionPlanCard({ address }: Props) {
                     </div>
                   </div>
                 ) : null}
-                {simulation.projectedFinalState ? (
-                  <div className="mt-3">
-                    <p className="mb-1 text-xs font-medium uppercase text-zinc-500">
-                      Projected Final State
-                    </p>
-                    <pre className="text-xs text-zinc-300">
-                      {JSON.stringify(simulation.projectedFinalState, null, 2)}
-                    </pre>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
+                 {simulation.projectedFinalState ? (
+                   <div className="mt-3">
+                     <p className="mb-1 text-xs font-medium uppercase text-zinc-500">
+                       Projected Final State
+                     </p>
+                     <pre className="text-xs text-zinc-300">
+                       {JSON.stringify(simulation.projectedFinalState, null, 2)}
+                     </pre>
+                   </div>
+                 ) : null}
+               </div>
+             ) : null}
 
-            {plan?.warnings && plan.warnings.length > 0 ? (
-              <div>
-                <p className="mb-2 text-xs font-medium uppercase text-zinc-500">
-                  Warnings
-                </p>
-                <div className="space-y-1">
-                  {plan.warnings.map((warning, index) => (
-                    <p key={index} className="text-xs text-amber-400">
-                      {warning}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            ) : null}
+             {planStatus === "APPROVED" && simulation && !signed ? (
+               <div className="rounded-xl border border-white/10 bg-black/20 p-4">
+                 <p className="mb-2 text-xs font-medium uppercase text-zinc-500">
+                   Sign Execution Intent
+                 </p>
+                 <p className="text-xs text-zinc-400 mb-3">
+                   Review the exact message below before signing. This signature
+                   does not execute any transaction or move funds.
+                 </p>
+                 {showSignPreview ? (
+                   <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3 mb-3">
+                     <pre className="text-xs text-zinc-300 whitespace-pre-wrap">
+                       {(() => {
+                         if (!plan || !planId) return "";
+                         const stepsSummary = plan.steps
+                           .map((s) => `#${s.order} ${s.protocol}/${s.action} ${s.asset ?? s.fromAsset ?? ""}`)
+                           .join("; ");
+                         return `I confirm intent to execute TreasuryOS execution plan.\nPlan ID: ${planId}\nWallet: ${address}\nReport Hash: ${plan.basedOnReportHash}\nSteps: ${stepsSummary}\nTimestamp: ${new Date().toISOString()}\nThis signature does not execute any transaction.`;
+                       })()}
+                     </pre>
+                   </div>
+                 ) : null}
+                 <div className="flex items-center gap-2">
+                   {!showSignPreview ? (
+                     <Button onClick={() => setShowSignPreview(true)} variant="secondary" size="sm">
+                       Review Message
+                     </Button>
+                   ) : (
+                     <>
+                       <Button onClick={signPlan} disabled={signing} variant="default" size="sm">
+                         {signing ? (
+                           <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                         ) : null}
+                         Sign Execution Intent
+                       </Button>
+                       <Button
+                         onClick={() => setShowSignPreview(false)}
+                         variant="outline"
+                         size="sm"
+                       >
+                         Cancel
+                       </Button>
+                     </>
+                   )}
+                 </div>
+                 {signError ? (
+                   <p className="mt-2 text-xs text-red-400">{signError}</p>
+                 ) : null}
+               </div>
+             ) : null}
 
-            {canAct ? (
+             {planStatus === "SIGNED" ? (
+               <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
+                 <p className="text-sm text-emerald-300">
+                   Signed — awaiting execution (execution not yet available)
+                 </p>
+                 <p className="text-xs text-zinc-400 mt-1">
+                   Signing this intent does not execute any transaction or move funds.
+                   Real execution requires a separate step not yet available.
+                 </p>
+               </div>
+             ) : null}
+
+             {isStale && signed ? (
+               <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
+                 <p className="text-sm text-red-300">
+                   Prior signature is void — treasury state has changed since signing.
+                 </p>
+                 <p className="text-xs text-zinc-400 mt-1">
+                   Regenerate the plan and sign again after review.
+                 </p>
+               </div>
+             ) : null}
+
+             {plan?.warnings && plan.warnings.length > 0 ? (
+               <div>
+                 <p className="mb-2 text-xs font-medium uppercase text-zinc-500">
+                   Warnings
+                 </p>
+                 <div className="space-y-1">
+                   {plan.warnings.map((warning, index) => (
+                     <p key={index} className="text-xs text-amber-400">
+                       {warning}
+                     </p>
+                   ))}
+                 </div>
+               </div>
+             ) : null}
+
+            {canAct || canSign ? (
               <div className="flex items-center gap-3">
-                <Button
-                  onClick={approvePlan}
-                  disabled={actionLoading}
-                  variant="default"
-                >
-                  {actionLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  ) : null}
-                  Approve
-                </Button>
-                <Button
-                  onClick={rejectPlan}
-                  disabled={actionLoading}
-                  variant="outline"
-                >
-                  Reject
-                </Button>
+                {canAct ? (
+                  <>
+                    <Button
+                      onClick={approvePlan}
+                      disabled={actionLoading}
+                      variant="default"
+                    >
+                      {actionLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : null}
+                      Approve
+                    </Button>
+                    <Button
+                      onClick={rejectPlan}
+                      disabled={actionLoading}
+                      variant="outline"
+                    >
+                      Reject
+                    </Button>
+                  </>
+                ) : null}
               </div>
             ) : null}
 
@@ -494,8 +636,9 @@ export function ExecutionPlanCard({ address }: Props) {
 
             <div className="rounded-lg border border-white/10 bg-black/20 p-3">
               <p className="text-xs text-zinc-500">
-                Approving a plan does not move funds. Execution is a separate,
-                not-yet-available step that will require a wallet signature.
+                Approving or signing a plan does not move funds. Execution is a
+                separate, not-yet-available step that will require a wallet
+                signature and a separate explicit execute action.
               </p>
             </div>
           </>

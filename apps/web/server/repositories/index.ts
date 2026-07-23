@@ -1,4 +1,4 @@
-import { and, desc, eq, ne, type SQL } from "drizzle-orm";
+import { and, desc, eq, ne, or, type SQL } from "drizzle-orm";
 import { requireDb, schema } from "@/lib/db";
 import type { RiskLevel, DecisionStatus, ExecutionStatus } from "@/types";
 
@@ -356,7 +356,7 @@ export class ExecutionPlanRepository {
 
   async updateStatus(
     id: string,
-    status: "APPROVED" | "REJECTED" | "STALE",
+    status: "APPROVED" | "SIGNED" | "REJECTED" | "STALE",
     options?: { snapshot?: unknown }
   ) {
     const db = requireDb();
@@ -369,6 +369,8 @@ export class ExecutionPlanRepository {
         updates.approvedSnapshot = JSON.stringify(options.snapshot);
         updates.approvedSnapshotAt = new Date();
       }
+    } else if (status === "SIGNED") {
+      updates.signedAt = new Date();
     } else if (status === "REJECTED") {
       updates.rejectedAt = new Date();
       updates.approvedAt = null;
@@ -390,10 +392,34 @@ export class ExecutionPlanRepository {
       .where(
         and(
           eq(schema.executionPlans.walletAddress, walletAddress.toLowerCase()),
-          eq(schema.executionPlans.status, "APPROVED"),
+          or(
+            eq(schema.executionPlans.status, "APPROVED"),
+            eq(schema.executionPlans.status, "SIGNED")
+          ),
           ne(schema.executionPlans.reportHash, currentReportHash)
         )
       )
+      .returning();
+    return plan ?? null;
+  }
+
+  async saveSignature(
+    id: string,
+    signerAddress: string,
+    signedMessage: string,
+    signature: string
+  ) {
+    const db = requireDb();
+    const [plan] = await db
+      .update(schema.executionPlans)
+      .set({
+        status: "SIGNED",
+        signerAddress: signerAddress.toLowerCase(),
+        signedMessage,
+        signature,
+        signedAt: new Date(),
+      })
+      .where(eq(schema.executionPlans.id, id))
       .returning();
     return plan ?? null;
   }

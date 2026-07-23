@@ -36,6 +36,7 @@ export const executionStatusEnum = pgEnum("execution_status", [
 export const executionPlanStatusEnum = pgEnum("execution_plan_status", [
   "PLANNED",
   "APPROVED",
+  "SIGNED",
   "REJECTED",
   "STALE",
 ]);
@@ -147,6 +148,10 @@ export const executionPlans = pgTable(
     simulationResult: jsonb("simulation_result"),
     approvedSnapshot: jsonb("approved_snapshot"),
     approvedSnapshotAt: timestamp("approved_snapshot_at"),
+    signerAddress: text("signer_address"),
+    signedMessage: text("signed_message"),
+    signature: text("signature"),
+    signedAt: timestamp("signed_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
   },
   (table) => ({

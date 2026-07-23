@@ -3,9 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Shield, X } from "lucide-react";
+import { Menu, Shield, X, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useWallet } from "@/components/wallet/context";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -17,6 +18,7 @@ export function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const network = process.env.NEXT_PUBLIC_CHAIN ?? "sepolia";
+  const { address, isConnected, isConnecting, connect, disconnect } = useWallet();
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-zinc-950/70 backdrop-blur-xl">
@@ -52,6 +54,31 @@ export function Navbar() {
           <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-emerald-300">
             {network}
           </span>
+          {isConnected && address ? (
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs text-zinc-300">
+                {address.slice(0, 6)}...{address.slice(-4)}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={disconnect}
+                className="text-xs"
+              >
+                Disconnect
+              </Button>
+            </div>
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={connect}
+              disabled={isConnecting}
+            >
+              <Wallet className="h-4 w-4 mr-2" />
+              {isConnecting ? "Connecting..." : "Connect Wallet"}
+            </Button>
+          )}
         </div>
 
         <Button
@@ -80,8 +107,36 @@ export function Navbar() {
               </Link>
             ))}
           </nav>
-          <div className="mt-3 rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-300">
-            Network: {network}
+          <div className="mt-3 flex flex-col gap-2">
+            <div className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-emerald-300">
+              Network: {network}
+            </div>
+            {isConnected && address ? (
+              <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
+                <span className="font-mono text-xs text-zinc-300">
+                  {address.slice(0, 6)}...{address.slice(-4)}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={disconnect}
+                  className="text-xs"
+                >
+                  Disconnect
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={connect}
+                disabled={isConnecting}
+                className="w-full"
+              >
+                <Wallet className="h-4 w-4 mr-2" />
+                {isConnecting ? "Connecting..." : "Connect Wallet"}
+              </Button>
+            )}
           </div>
         </div>
       ) : null}
