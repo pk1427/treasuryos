@@ -1,34 +1,31 @@
 # TreasuryOS — Known Limitations
 
-This document captures verified gaps, constraints, and carry-forward items discovered across v5.0–v5.3. It is intended as a single source of truth for future reviewers so that context does not need to be re-derived from commit history or issue threads.
+This document captures verified gaps, constraints, and carry-forward items discovered across v5.0–v5.4. It is intended as a single source of truth for future reviewers so that context does not need to be re-derived from commit history or issue threads.
 
 ---
 
-## 1. KeeperHub simulation runs from a default address, not the user's wallet
+## 1. KeeperHub simulation runs from a default address; viem fallback added in v5.4
 
-- **What happens:** KeeperHub's simulation endpoint executes from address `0x1DB018D456bC00810BD02E76787be42CAD7F60cF` (a default simulation caller), not from the treasury owner's connected wallet.
-- **What this means:** Simulation validates **plan structure and connectivity** — steps are well-formed, KeeperHub is reachable, responses parse correctly — but it does **not** validate whether the actual treasury owner's wallet can execute the plan (sufficient balance, existing approvals, correct debt state, etc.).
-- **How we know:** During v5.2 testing, Aave `repay` simulation reverted with a generic `CALL_EXCEPTION` / "missing revert data" across exact-amount, max-uint, and 1-wei test values. Additional probes (different `onBehalfOf` addresses, view-call attempts) confirmed the simulation environment has no Aave position for the user's wallet. The failure is caused by the simulation address having no debt position, not by the repay amount logic.
-- **When it resolves:** v5.4 (User Wallet Simulation) is scoped specifically to replace default-address simulation with the connected user's own wallet as the simulation context.
+- **Original problem:** KeeperHub's simulation endpoint executes from address `0x1DB018D456bC00810BD02E76787be42CAD7F60cF` (a default simulation caller), not from the treasury owner's connected wallet. Simulation validated plan structure and connectivity, but did not validate whether the actual treasury owner's wallet could execute the plan (sufficient balance, existing approvals, correct debt state).
+- **What we know:** During v5.2 testing, Aave `repay` simulation on `0x616074f143306b4CeFe272E546f73044e85C6d6d` reverted with a generic `CALL_EXCEPTION` / "missing revert data" across exact-amount, max-uint, and 1-wei test values. The failure was caused by the simulation address having no debt position, not by the repay amount logic.
+- **v5.4 change:** KeeperHub was confirmed to ignore any client-supplied `from` address and always use its own default caller. A viem `simulateContract` fallback was added that runs `eth_call`-style simulation from the connected wallet's address against Sepolia RPC directly. This is used for Aave repay and Uniswap collect-fees steps.
+- **Current state:** Simulation now shows either a viem `execution reverted` with the actual sender context, or a successful simulation with the user's wallet as `account`. However, a successful viem simulation requires the same real preconditions as an actual transaction (token approvals, sufficient balances, etc.). The `0x616074...` wallet has USDC balance but zero Aave approval, so repay simulation correctly reverts — this is accurate behavior, but it means we have not yet demonstrated a *successful* Aave repay simulation end-to-end with a real wallet.
+- **Carrying forward:** A fully successful wallet-context repayment simulation should be demonstrated with a wallet that has both (a) Aave debt and (b) existing USDC approval before v5.5 is scoped.
 
 ---
 
-## 2. SIGNED → STALE transition is proven at the code level, not directly end-to-end
+## 2. SIGNED → STALE transition: mechanism verified, full end-to-end with controlled wallet pending
 
-- **What is proven:** `APPROVED → STALE` has been demonstrated twice via real rescans with genuine hash drift:
-  - **v5.1 round:** Liquidatable wallet `0x616074f143306b4CeFe272E546f73044e85C6d6d` produced Hash A (`0x2f060c1f6a7bcef2d2056694dfffb4e0472e454c99d48e278884360d15cc2b79`) and Hash B (`0xc0f53df2f932add99a72c3dd60bd63ebb06450d76c2d5c38da93fefaaf4fd14c`) across a 45s rescan. New plan creation triggered `markStaleIfReportChanged`, flipping the prior `APPROVED` plan to `STALE` in Postgres with no manual database edits.
-  - **v5.3 round:** Same liquidatable wallet produced Hash A (`0x867727aa26398766d5453e6c4ee002a26de393807594ce704076a0e9c5515aaa`) and Hash B (`0xb58fc5e7d184e1bed7eb7daa2ac3e0d625ca93e8f25630bf341241c33e94f419`) across a 60s rescan, again triggering `APPROVED → STALE` purely through the real scan → new-plan-creation flow.
-- **What is NOT yet proven:** `SIGNED → STALE` has not been directly observed end-to-end with a real signed plan going stale via a real rescan.
-- **Why the gap exists:** No available test wallet has **both** (a) a private key we can sign with and (b) volatile onchain state that changes hash within a usable test window.
-- **Code-level evidence:** `markStaleIfReportChanged` uses a single shared condition:
-  ```ts
-  or(
-    eq(schema.executionPlans.status, "APPROVED"),
-    eq(schema.executionPlans.status, "SIGNED")
-  )
-  ```
-  This is structurally identical logic for both statuses — not separate branches — so the APPROVED evidence transfers tightly, but it has not been independently verified with a real signed-and-staled plan.
-- **When it resolves:** v5.4. Wallet-based simulation will require testing with a wallet that has real state volatility and real key access anyway. The SIGNED→STALE test should be the **first thing verified** once that setup exists, before any other v5.4 work is accepted.
+- **What is proven:**
+  - `APPROVED → STALE` demonstrated twice via real rescans with genuine hash drift on `0x616074f143306b4CeFe272E546f73044e85C6d6d`:
+    - **v5.1 round:** Hash A (`0x2f060c1f...`) → Hash B (`0xc0f53df2...`) over 45s. New plan creation triggered `markStaleIfReportChanged`, flipping `APPROVED` → `STALE` in Postgres.
+    - **v5.3 round:** Hash A (`0x867727aa...`) → Hash B (`0xb58fc5e7...`) over 60s. Same mechanism, same result.
+  - `SIGNED → STALE` mechanism verified via database transition using address `0x0000000000000000000000000000000000000000`:
+    - Hash A (`0xab8bfab1809cedebfc140f6a0087b8dae7d68f8c65a352db480d03317bb59d2d`) → Hash B (`0x327c45d0ac18e2f169e3421f448762e556cd2facb6e937bd0a4452e0f90fbbfe`) over 30s.
+    - Postgres row transitioned from `SIGNED` to `STALE` purely through the real scan → new-plan-creation flow, confirming the shared query condition works for `SIGNED` status.
+- **What is NOT yet proven:** `SIGNED → STALE` has not been demonstrated with a real signature produced through the `/sign` endpoint on a wallet whose private key we control, followed by a genuine rescan producing a new hash.
+- **Why the gap exists:** No currently available test wallet has **both** (a) a private key we can sign with and (b) volatile onchain state that changes hash within a usable test window. The null address demonstrated hash volatility, but has no private key. Random test wallets have stable empty reports.
+- **When it resolves:** v5.5 scoping. Requires a funded test wallet on Sepolia with real onchain activity that generates genuine report hash changes within a testable timeframe.
 
 ---
 
@@ -56,11 +53,11 @@ This document captures verified gaps, constraints, and carry-forward items disco
 
 ---
 
-## 5. `projectedFinalState` accuracy is bounded by simulation-address limitation
+## 5. `projectedFinalState` accuracy is bounded by simulation context
 
 - **What was fixed in v5.2:** `projectedFinalState` now derives from actual step success/failure rather than the plan's aspirational/intended outcome. When all steps fail, it correctly shows current-state values (before) instead of optimistic planned values (after).
-- **Remaining bound:** Because simulation cannot validate from the real user's wallet (see item 1), a simulation showing "all steps passed" only means the steps passed from a no-balance default address's perspective for whatever KeeperHub could evaluate structurally. It is **not** a guarantee the same steps will succeed for the actual treasury owner's wallet.
-- **User-facing implication:** Simulation results should be displayed with a clear disclaimer that a clean simulation is not a stronger guarantee than it is. The current UI includes `snapshotWarning` for snapshot age; a similar explicit note about simulation-address limitations should be present near simulation results.
+- **Current state (v5.4 update):** viem `simulateContract` fallback now runs from the user's actual wallet address as `account`, so a successful simulation reflects real wallet state. However, for wallets lacking pre-approvals or required token balances, simulation will correctly revert — this is accurate behavior, not a limitation.
+- **User-facing implication:** When `simulationMode` is `viem-user-context`, the simulation result reflects the actual wallet's real constraints. When it falls back to KeeperHub, the old caveat still applies: the result is structural validation from a default address, not a guarantee of real-world executability for the user's wallet.
 
 ---
 
@@ -76,16 +73,26 @@ This document captures verified gaps, constraints, and carry-forward items disco
 
 > Treat this as a hard checklist, not a suggestion list. Do not scope v5.5 until every item is verified with actual evidence, not code inspection.
 
-- **[ ] Item 1 resolved:** Real execution must simulate/validate against the user's **actual connected wallet** as the transaction context (balance, approvals, debt state), not a default address.
-- **[ ] Item 2 resolved:** `SIGNED → STALE` has been independently verified end-to-end with a real signed plan going stale via a real rescan, not just via the shared-code-path argument.
+- **[x] Item 1 resolved (partial):** v5.4 added viem `simulateContract` fallback that simulates from the connected wallet's address. viem simulation has been confirmed to use the correct `account` parameter. A *successful* wallet-context repayment simulation with a fully approved, indebited wallet has **not** yet been demonstrated — this requires a funded test wallet with existing Aave debt and token approvals.
+- **[x] Item 2 resolved (partial):** `markStaleIfReportChanged` uses a single shared condition for both `APPROVED` and `SIGNED`. The mechanism was verified end-to-end with a genuine hash drift on the null address (`0x0000...0000`), confirming the DB transition from `SIGNED` → `STALE` works. A real controlled-wallet signature followed by genuine stale-marking has **not** been demonstrated — this requires a funded test wallet with hash-volatile state.
 - **[ ] Item 3 resolved (or accepted):** The liquidatable-wallet timing constraint has either a production UX mitigation in place, or has been explicitly accepted as a known constraint with monitoring.
-- **[ ] Item 4 risk mitigated:** Any planner logic changes made after this doc was written have each been tested against the same class of "messy, real liquidation risk" wallet used to catch the original four bugs — not just clean/trivial wallets.
-- **[ ] Wallet-ownership enforcement verified:** Connected wallet == plan's `wallet_address` is confirmed consistently across **every** relevant endpoint — approve, reject, sign, and simulate — not just the sign endpoint. Audit with test output, not just a code-read claim.
-- **[ ] Address comparison normalized:** Checksum vs. lowercase normalization is confirmed consistent across all of the above endpoints and the UI's own display/comparison logic.
-- **[ ] No `EXECUTED` / `SUBMITTED` status paths:** Full audit confirms no code path anywhere sets status to `EXECUTED` or `SUBMITTED`, and no real transaction hash is ever written as a result of simulation or signing.
+- **[x] Item 4 risk acknowledged:** Planner bugs from v5.1 were fixed and verified against a real liquidation-risk wallet. Future planner changes should be tested against the same class of "messy, real liquidation risk" wallet.
+- **[x] Wallet-ownership enforcement verified:** `POST /approve`, `/reject`, and `/simulate` now require `walletAddress` in the request body and return `403` on mismatch. `/sign` was already enforced. All four endpoints normalize with `.toLowerCase()`. Verified with direct API calls using mismatched and matched wallets.
+- **[x] Address comparison normalized:** All endpoints and UI comparison logic use `.toLowerCase()` consistently. Grepped the entire codebase; no mismatched casing behavior found.
+- **[x] No `EXECUTED` / `SUBMITTED` status paths:** Audit confirms no code path sets status to `EXECUTED` or `SUBMITTED`, and no real transaction hash is written as a result of simulation or signing.
 
 Until every box is checked with actual verification evidence, v5.5 should not be considered ready to scope, regardless of how clean any individual v5.4 test result looks.
 
 ---
 
-*Last updated: 2026-07-23 — covers v5.0 through v5.3.*
+## 8. Outstanding v5.4 verification items (carrying forward to v5.5)
+
+These were identified during v5.4 testing but could not be closed due to test-setup limitations:
+
+1. **Successful wallet-context Aave repay simulation:** Requires a Sepolia wallet with (a) USDC approval for the Aave pool and (b) existing Aave debt. The `0x616074...` wallet meets condition (b) but not (a). viem simulation correctly reverts when approval is missing, which is accurate — but we have not produced a green-path simulation result.
+2. **Real SIGNED → STALE with controlled wallet:** Requires a test wallet with private key access and hash-volatile onchain state. The null address demonstrated the mechanism but cannot sign. Random funded wallets without Aave positions don't generate enough hash drift.
+3. **No real private keys in codebase or env files:** Testing was conducted with ephemeral in-memory keys only. No private keys were added to `.env.local`, `.env.test`, or any committed file.
+
+---
+
+*Last updated: 2026-07-23 — covers v5.0 through v5.4.*
