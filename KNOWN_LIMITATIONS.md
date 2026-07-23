@@ -108,6 +108,40 @@ These were identified during v5.4 testing but could not be closed due to test-se
   - Use hardhat/anvil local fork of Ethereum Sepolia for controlled test scenarios
 - **Carrying forward:** This is a test-infrastructure blocker, not a code defect. It does not block v5.5 scoping, but it does mean end-to-end execution-path testing requires one of the workarounds above before v5.5 can be fully validated.
 
+## 9. Aave execution validation deferred to Base Sepolia integration
+
+- **Reason:** Aave's public UI currently exposes Base Sepolia, not Ethereum Sepolia. TreasuryOS is Ethereum Sepolia-first. This is a test-infrastructure blocker, not a code defect.
+- **Decision:** Aave execution testing is deferred until Base Sepolia integration. TreasuryOS v5 execution framework will be validated using Uniswap V3 instead.
+- **What remains supported:** Aave continues to work as an **intelligence layer** — risk assessment, debt scanning, and repay planning are all functional. Only actual onchain Aave execution (supply/borrow/repay/withdraw) is deferred.
+- **Protocol responsibility split:**
+  - **Wallet:** Asset discovery
+  - **Uniswap:** Execution validation
+  - **Aave:** Risk & debt intelligence
+  - **KeeperHub:** Orchestration
+  - **AI:** Planning
+- **Future scope:** Once Uniswap execution is proven, Aave execution actions can be added as new action types in the same framework: `supply()`, `borrow()`, `repay()`, `withdraw()`.
+
+---
+
+## 10. Official roadmap and v5.5 scope
+
+- **v5.3:** Signed Intent — complete
+- **v5.4:** Wallet Ownership — complete
+- **v5.5:** Uniswap Execution — next phase
+  - ETH → USDC swap
+  - USDC → ETH swap
+  - Real transaction broadcasting from user's connected wallet
+  - Execution history with tx hash and status
+- **v5.6:** Execution History & Attestation
+  - Onchain attestation of execution results
+  - Transaction verification
+- **v5.7:** Multi-step Execution
+  - Atomic multi-step plans
+  - Step failure handling and rollback
+- **Future:** Base Sepolia integration
+  - Aave supply/borrow/repay execution
+  - Cross-chain or multi-protocol workflows
+
 ---
 
 *Last updated: 2026-07-23 — covers v5.0 through v5.4.*
