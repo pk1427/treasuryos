@@ -1,8 +1,18 @@
+import { createPublicClient, http } from "viem";
+import { sepolia } from "viem/chains";
 import type { ExecutionPlan, PlanStep } from "@/lib/ai/plan-types";
 import type { TreasurySnapshot } from "@treasuryos/shared";
 
 const KEEPERHUB_API_URL =
   process.env.KEEPERHUB_API_URL ?? "https://app.keeperhub.com";
+
+const viemClient = createPublicClient({
+  chain: sepolia,
+  transport: http(process.env.SEPOLIA_RPC_URL ?? "https://ethereum-sepolia-rpc.publicnode.com"),
+});
+
+const AAVE_POOL = "0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951";
+const UNISWAP_NFPM = "0x1238536071E1c677A632429e3655c799b22cDA52";
 
 export type StepSimulationResult = {
   order: number;
@@ -13,6 +23,7 @@ export type StepSimulationResult = {
   note?: string;
   error?: string;
   rawKeeperHubResponse?: Record<string, unknown>;
+  rawViemResponse?: Record<string, unknown>;
 };
 
 export type PlanSimulationResult = {
@@ -22,26 +33,34 @@ export type PlanSimulationResult = {
   warnings: string[];
   rawKeeperHubResponse: Record<string, unknown>;
   snapshotWarning?: string;
+  simulationMode: "keeperhub" | "viem-user-context";
 };
 
 export async function simulatePlanSteps(
   plan: ExecutionPlan,
-  snapshot: TreasurySnapshot
+  snapshot: TreasurySnapshot,
+  connectedWallet?: string
 ): Promise<PlanSimulationResult> {
   const apiKey = process.env.KEEPERHUB_API_KEY;
   const steps: StepSimulationResult[] = [];
   const warnings: string[] = [];
   const rawResponses: Record<number, unknown> = {};
+  const rawViemResponses: Record<number, unknown> = {};
+  let simulationMode: PlanSimulationResult["simulationMode"] = "keeperhub";
 
   for (const step of plan.steps) {
     if (step.protocol === "aave" && step.action === "repay") {
-      const result = await simulateAaveRepay(step, snapshot, apiKey);
+      const result = await simulateAaveRepay(step, snapshot, apiKey, connectedWallet);
       steps.push(result);
       rawResponses[step.order] = result.rawKeeperHubResponse ?? {};
+      rawViemResponses[step.order] = result.rawViemResponse ?? {};
+      if (result.rawViemResponse) simulationMode = "viem-user-context";
     } else if (step.protocol === "uniswap" && step.action === "collect-fees") {
-      const result = await simulateUniswapCollect(step, snapshot, apiKey);
+      const result = await simulateUniswapCollect(step, snapshot, apiKey, connectedWallet);
       steps.push(result);
       rawResponses[step.order] = result.rawKeeperHubResponse ?? {};
+      rawViemResponses[step.order] = result.rawViemResponse ?? {};
+      if (result.rawViemResponse) simulationMode = "viem-user-context";
     } else if (step.protocol === "wallet" && step.action === "swap") {
       steps.push({
         order: step.order,
@@ -74,25 +93,17 @@ export async function simulatePlanSteps(
     projectedFinalState: buildProjectedFinalState(plan, steps),
     warnings,
     rawKeeperHubResponse: rawResponses,
+    snapshotWarning: undefined,
+    simulationMode,
   };
 }
 
 async function simulateAaveRepay(
   step: PlanStep,
   snapshot: TreasurySnapshot,
-  apiKey?: string
+  apiKey?: string,
+  connectedWallet?: string
 ): Promise<StepSimulationResult> {
-  if (!apiKey) {
-    return {
-      order: step.order,
-      protocol: step.protocol,
-      action: step.action,
-      success: true,
-      note: "Demo mode: KeeperHub API key not configured. Simulation skipped.",
-      estimatedGas: "0.00042 ETH",
-    };
-  }
-
   const aavePositions = snapshot.positions.filter((p) => p.protocol === "Aave");
   const reserve = aavePositions.find(
     (p) => p.asset === step.asset && p.metadata?.positionType === "borrowed"
@@ -112,7 +123,7 @@ async function simulateAaveRepay(
   const underlyingAddress = (reserve.metadata as { underlying?: string }).underlying;
   const amount = BigInt(Math.round((step.amountUsd ?? 0) * 1e6));
   const onBehalfOf = snapshot.address as `0x${string}`;
-  const contractAddress = "0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951"; // Aave V3 Pool
+  const fromAddress = (connectedWallet ?? snapshot.address) as `0x${string}`;
 
   const abi = [
     {
@@ -129,62 +140,92 @@ async function simulateAaveRepay(
     },
   ];
 
-  try {
-    const response = await callKeeperHubSimulate({
-      contractAddress,
-      functionName: "repay",
-      functionArgs: [underlyingAddress, amount.toString(), onBehalfOf, 0],
-      abi,
-      apiKey,
-    });
+  const keeperhubArgs = [underlyingAddress, amount.toString(), onBehalfOf, 0] as unknown[];
 
+  const keeperhubResult = apiKey
+    ? await callKeeperHubSimulate({
+        contractAddress: AAVE_POOL,
+        functionName: "repay",
+        functionArgs: keeperhubArgs,
+        abi,
+        apiKey,
+      }).catch((error) => ({ error: error instanceof Error ? error.message : "KEEPERHUB_FAILED" }))
+    : null;
+
+  let viemResult: Record<string, unknown> | null = null;
+  try {
+    const viemResultRaw = await viemClient.simulateContract({
+      address: AAVE_POOL,
+      abi,
+      functionName: "repay",
+      args: [underlyingAddress, amount, onBehalfOf, 0],
+      account: fromAddress,
+    });
+    viemResult = { success: true, result: viemResultRaw };
+  } catch (error) {
+    viemResult = {
+      success: false,
+      error: error instanceof Error ? error.message : "VIEM_SIMULATION_FAILED",
+    };
+  }
+
+  const viemSucceeded = viemResult && (viemResult as { success?: boolean }).success !== false;
+  const keeperhubSucceeded = keeperhubResult && !(keeperhubResult as { error?: string }).error;
+
+  if (viemSucceeded) {
     return {
       order: step.order,
       protocol: step.protocol,
       action: step.action,
       success: true,
       estimatedGas:
-        typeof response.gasEstimate === "string"
-          ? response.gasEstimate
+        typeof (viemResult as { result?: { gas?: bigint } }).result?.gas === "bigint"
+          ? (viemResult as { result: { gas: bigint } }).result.gas.toString()
           : "0.00042 ETH",
-      note:
-        typeof response.message === "string"
-          ? response.message
-          : "Simulation successful.",
-      rawKeeperHubResponse: response,
-    };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "SIMULATION_FAILED";
-    return {
-      order: step.order,
-      protocol: step.protocol,
-      action: step.action,
-      success: false,
-      error: errorMessage,
-      note: `Aave repay simulation failed: ${errorMessage}`,
-      rawKeeperHubResponse: error instanceof Error && error.cause
-        ? { cause: error.cause }
-        : { message: errorMessage },
+      note: `Simulation successful from ${fromAddress}.`,
+      rawViemResponse: viemResult,
+      rawKeeperHubResponse: keeperhubResult ?? undefined,
     };
   }
-}
 
-async function simulateUniswapCollect(
-  step: PlanStep,
-  _snapshot: TreasurySnapshot,
-  apiKey?: string
-): Promise<StepSimulationResult> {
-  if (!apiKey) {
+  if (keeperhubSucceeded) {
     return {
       order: step.order,
       protocol: step.protocol,
       action: step.action,
       success: true,
-      note: "Demo mode: KeeperHub API key not configured. Simulation skipped.",
-      estimatedGas: "0.00018 ETH",
+      estimatedGas:
+        typeof (keeperhubResult as Record<string, unknown>).gasEstimate === "string"
+          ? (keeperhubResult as { gasEstimate: string }).gasEstimate
+          : "0.00042 ETH",
+      note:
+        typeof (keeperhubResult as Record<string, unknown>).message === "string"
+          ? (keeperhubResult as { message: string }).message
+          : "Simulation successful.",
+      rawKeeperHubResponse: keeperhubResult,
     };
   }
 
+  return {
+    order: step.order,
+    protocol: step.protocol,
+    action: step.action,
+    success: false,
+    error: viemResult && (viemResult as { error?: string }).error
+      ? (viemResult as { error: string }).error
+      : "SIMULATION_FAILED",
+    note: `Aave repay simulation failed: ${(viemResult && (viemResult as { error?: string }).error) || (keeperhubResult && (keeperhubResult as { error?: string }).error) || "Unknown error"}`,
+    rawViemResponse: viemResult,
+    rawKeeperHubResponse: keeperhubResult ?? undefined,
+  };
+}
+
+async function simulateUniswapCollect(
+  step: PlanStep,
+  _snapshot: TreasurySnapshot,
+  apiKey?: string,
+  connectedWallet?: string
+): Promise<StepSimulationResult> {
   const uniswapPositions = _snapshot.positions.filter((p) => p.protocol === "Uniswap");
   const position = uniswapPositions[0];
 
@@ -202,7 +243,7 @@ async function simulateUniswapCollect(
   const metadata = position.metadata as { tokenId?: string };
   const tokenId = metadata.tokenId ?? "0";
   const recipient = _snapshot.address as `0x${string}`;
-  const contractAddress = "0x1238536071E1c677A632429e3655c799b22cDA52"; // NonfungiblePositionManager
+  const fromAddress = (connectedWallet ?? _snapshot.address) as `0x${string}`;
 
   const abi = [
     {
@@ -222,44 +263,92 @@ async function simulateUniswapCollect(
     },
   ];
 
-  try {
-    const response = await callKeeperHubSimulate({
-      contractAddress,
-      functionName: "collect",
-      functionArgs: [tokenId, recipient, "115792089237316195423570985008687907853269984665640564039457584007913129639935", "115792089237316195423570985008687907853269984665640564039457584007913129639935"],
-      abi,
-      apiKey,
-    });
+  const keeperhubResult = apiKey
+    ? await callKeeperHubSimulate({
+        contractAddress: UNISWAP_NFPM,
+        functionName: "collect",
+        functionArgs: [
+          tokenId,
+          recipient,
+          "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+          "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+        ],
+        abi,
+        apiKey,
+      }).catch((error) => ({ error: error instanceof Error ? error.message : "KEEPERHUB_FAILED" }))
+    : null;
 
+  let viemResult: Record<string, unknown> | null = null;
+  try {
+    const viemResultRaw = await viemClient.simulateContract({
+      address: UNISWAP_NFPM,
+      abi,
+      functionName: "collect",
+      args: [
+        BigInt(tokenId),
+        recipient,
+        BigInt("115792089237316195423570985008687907853269984665640564039457584007913129639935"),
+        BigInt("115792089237316195423570985008687907853269984665640564039457584007913129639935"),
+      ],
+      account: fromAddress,
+    });
+    viemResult = { success: true, result: viemResultRaw };
+  } catch (error) {
+    viemResult = {
+      success: false,
+      error: error instanceof Error ? error.message : "VIEM_SIMULATION_FAILED",
+    };
+  }
+
+  const viemSucceeded = viemResult && (viemResult as { success?: boolean }).success !== false;
+  const keeperhubSucceeded = keeperhubResult && !(keeperhubResult as { error?: string }).error;
+
+  if (viemSucceeded) {
     return {
       order: step.order,
       protocol: step.protocol,
       action: step.action,
       success: true,
       estimatedGas:
-        typeof response.gasEstimate === "string"
-          ? response.gasEstimate
+        typeof (viemResult as { result?: { gas?: bigint } }).result?.gas === "bigint"
+          ? (viemResult as { result: { gas: bigint } }).result.gas.toString()
           : "0.00018 ETH",
-      note:
-        typeof response.message === "string"
-          ? response.message
-          : "Simulation successful.",
-      rawKeeperHubResponse: response,
+      note: `Simulation successful from ${fromAddress}.`,
+      rawViemResponse: viemResult,
+      rawKeeperHubResponse: keeperhubResult ?? undefined,
     };
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : "SIMULATION_FAILED";
+  }
+
+  if (keeperhubSucceeded) {
     return {
       order: step.order,
       protocol: step.protocol,
       action: step.action,
-      success: false,
-      error: errorMessage,
-      note: `Uniswap collect simulation failed: ${errorMessage}`,
-      rawKeeperHubResponse: error instanceof Error && error.cause
-        ? { cause: error.cause }
-        : { message: errorMessage },
+      success: true,
+      estimatedGas:
+        typeof (keeperhubResult as Record<string, unknown>).gasEstimate === "string"
+          ? (keeperhubResult as { gasEstimate: string }).gasEstimate
+          : "0.00018 ETH",
+      note:
+        typeof (keeperhubResult as Record<string, unknown>).message === "string"
+          ? (keeperhubResult as { message: string }).message
+          : "Simulation successful.",
+      rawKeeperHubResponse: keeperhubResult,
     };
   }
+
+  return {
+    order: step.order,
+    protocol: step.protocol,
+    action: step.action,
+    success: false,
+    error: viemResult && (viemResult as { error?: string }).error
+      ? (viemResult as { error: string }).error
+      : "SIMULATION_FAILED",
+    note: `Uniswap collect simulation failed: ${(viemResult && (viemResult as { error?: string }).error) || (keeperhubResult && (keeperhubResult as { error?: string }).error) || "Unknown error"}`,
+    rawViemResponse: viemResult,
+    rawKeeperHubResponse: keeperhubResult ?? undefined,
+  };
 }
 
 async function callKeeperHubSimulate(input: {

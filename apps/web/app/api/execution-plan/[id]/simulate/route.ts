@@ -80,7 +80,7 @@ export async function POST(
         "No snapshot was stored at approval time. Simulation is based on a live scan and may not match the plan's intended assumptions.";
     }
 
-    const simulationResult = await simulatePlanSteps(plan, snapshot);
+    const simulationResult = await simulatePlanSteps(plan, snapshot, requestWalletAddress);
 
     await executionPlanRepo.saveSimulationResult(id, simulationResult);
 

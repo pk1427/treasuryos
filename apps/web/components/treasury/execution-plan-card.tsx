@@ -455,6 +455,11 @@ export function ExecutionPlanCard({ address }: Props) {
                       ? "All steps passed"
                       : "Issues detected"}
                   </Badge>
+                  {simulation.simulationMode === "viem-user-context" ? (
+                    <Badge variant="medium" className="normal-case">
+                      User Context
+                    </Badge>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   {simulation.steps.map((step) => (
@@ -664,9 +669,9 @@ export function ExecutionPlanCard({ address }: Props) {
 
             <div className="rounded-lg border border-white/10 bg-black/20 p-3">
               <p className="text-xs text-zinc-500">
-                Approving or signing a plan does not move funds. Execution is a
-                separate, not-yet-available step that will require a wallet
-                signature and a separate explicit execute action.
+                {simulation?.simulationMode === "viem-user-context"
+                  ? "Simulation reflects the actual wallet's real state and runs from the connected wallet address. Approving or signing a plan does not move funds. Execution is a separate, not-yet-available step."
+                  : "Approving or signing a plan does not move funds. Execution is a separate, not-yet-available step that will require a wallet signature and a separate explicit execute action."}
               </p>
             </div>
           </>
