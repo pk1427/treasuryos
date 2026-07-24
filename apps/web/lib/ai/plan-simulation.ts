@@ -12,7 +12,34 @@ const viemClient = createPublicClient({
 });
 
 const AAVE_POOL = "0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951";
-const UNISWAP_NFPM = "0x1238536071E1c677A632429e3655c799b22cDA52";
+const UNISWAP_SWAP_ROUTER = "0x68b3465833fb72A70ecF484E0b4C990D5";
+const USDC_SEPOLIA = "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238";
+
+const UNISWAP_ROUTER_ABI = [
+  {
+    type: "function",
+    name: "exactInputSingle",
+    inputs: [
+      {
+        name: "params",
+        type: "tuple",
+        components: [
+          { name: "sender", type: "address" },
+          { name: "tokenIn", type: "address" },
+          { name: "tokenOut", type: "address" },
+          { name: "fee", type: "uint24" },
+          { name: "recipient", type: "address" },
+          { name: "deadline", type: "uint256" },
+          { name: "amountIn", type: "uint256" },
+          { name: "amountOutMinimum", type: "uint256" },
+          { name: "sqrtPriceLimitX96", type: "uint160" },
+        ],
+      },
+    ],
+    outputs: [{ name: "amountOut", type: "uint256" }],
+    stateMutability: "payable",
+  },
+];
 
 export type StepSimulationResult = {
   order: number;
@@ -61,19 +88,13 @@ export async function simulatePlanSteps(
       rawResponses[step.order] = result.rawKeeperHubResponse ?? {};
       rawViemResponses[step.order] = result.rawViemResponse ?? {};
       if (result.rawViemResponse) simulationMode = "viem-user-context";
-    } else if (step.protocol === "wallet" && step.action === "swap") {
-      steps.push({
-        order: step.order,
-        protocol: step.protocol,
-        action: step.action,
-        success: false,
-        note: "Swap simulation requires a configured DEX router address.",
-        error: "NO_DEX_ROUTER_CONFIGURED",
-      });
-      warnings.push(
-        `Step ${step.order}: Wallet swap simulation skipped — no DEX router configured.`
-      );
-    } else {
+} else if (step.protocol === "wallet" && step.action === "swap") {
+       const result = await simulateWalletSwap(step, snapshot, apiKey, connectedWallet);
+       steps.push(result);
+       rawResponses[step.order] = result.rawKeeperHubResponse ?? {};
+       rawViemResponses[step.order] = result.rawViemResponse ?? {};
+       if (result.rawViemResponse) simulationMode = "viem-user-context";
+     } else {
       steps.push({
         order: step.order,
         protocol: step.protocol,
@@ -265,13 +286,13 @@ async function simulateUniswapCollect(
 
   const keeperhubResult = apiKey
     ? await callKeeperHubSimulate({
-        contractAddress: UNISWAP_NFPM,
+        contractAddress: UNISWAP_SWAP_ROUTER,
         functionName: "collect",
         functionArgs: [
           tokenId,
           recipient,
-          "115792089237316195423570985008687907853269984665640564039457584007913129639935",
-          "115792089237316195423570985008687907853269984665640564039457584007913129639935",
+          BigInt("115792089237316195423570985008687907853269984665640564039457584007913129639935"),
+          BigInt("115792089237316195423570985008687907853269984665640564039457584007913129639935"),
         ],
         abi,
         apiKey,
@@ -281,7 +302,7 @@ async function simulateUniswapCollect(
   let viemResult: Record<string, unknown> | null = null;
   try {
     const viemResultRaw = await viemClient.simulateContract({
-      address: UNISWAP_NFPM,
+      address: UNISWAP_SWAP_ROUTER,
       abi,
       functionName: "collect",
       args: [
@@ -346,6 +367,164 @@ async function simulateUniswapCollect(
       ? (viemResult as { error: string }).error
       : "SIMULATION_FAILED",
     note: `Uniswap collect simulation failed: ${(viemResult && (viemResult as { error?: string }).error) || (keeperhubResult && (keeperhubResult as { error?: string }).error) || "Unknown error"}`,
+    rawViemResponse: viemResult,
+    rawKeeperHubResponse: keeperhubResult ?? undefined,
+  };
+}
+
+async function simulateWalletSwap(
+  step: PlanStep,
+  _snapshot: TreasurySnapshot,
+  apiKey?: string,
+  connectedWallet?: string
+): Promise<StepSimulationResult> {
+  const fromAsset = (step.fromAsset ?? step.asset ?? "").toUpperCase();
+  const toAsset = (step.toAsset ?? "").toUpperCase();
+  const fromAddress = (connectedWallet ?? _snapshot.address) as `0x${string}`;
+  const amountUsd = step.amountUsd ?? 0;
+  const deadline = Math.floor(Date.now() / 1000) + 1200;
+
+  const isEthInput = fromAsset === "ETH" || fromAsset === "WETH";
+  const isUsdcOutput = toAsset === "USDC";
+  const isUsdcInput = fromAsset === "USDC";
+  const isEthOutput = toAsset === "ETH" || toAsset === "WETH";
+
+  let keeperhubResult: Record<string, unknown> | undefined = undefined;
+  let viemResult: Record<string, unknown> | null = null;
+
+  if (apiKey) {
+    try {
+      keeperhubResult = await callKeeperHubSimulate({
+        contractAddress: UNISWAP_SWAP_ROUTER,
+        functionName: "exactInputSingle",
+        functionArgs: [
+          {
+            sender: fromAddress,
+            tokenIn: isEthInput
+              ? "0xEeeeeEeeeEeEeEeEeEeEEEeeeeEeeeeeeeEEeE"
+              : USDC_SEPOLIA,
+            tokenOut: isEthOutput
+              ? "0xEeeeeEeeeEeEeEeEeEeEEEeeeeEeeeeeeeEEeE"
+              : USDC_SEPOLIA,
+            fee: 500,
+            recipient: fromAddress,
+            deadline,
+            amountIn: isEthInput ? BigInt(Math.round(amountUsd * 1e18)).toString() : "1",
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0,
+          },
+        ],
+        abi: UNISWAP_ROUTER_ABI,
+        apiKey,
+      }).catch((error) => ({ error: error instanceof Error ? error.message : "KEEPERHUB_FAILED" }));
+    } catch {
+      keeperhubResult = undefined;
+    }
+  }
+
+  try {
+    if (isEthInput && isUsdcOutput) {
+      const viemRes = await viemClient.simulateContract({
+        address: UNISWAP_SWAP_ROUTER,
+        abi: UNISWAP_ROUTER_ABI,
+        functionName: "exactInputSingle",
+        args: [
+          {
+            sender: fromAddress,
+            tokenIn: "0xEeeeeEeeeEeEeEeEeEeEEEeeeeEeeeeeeeEEeE" as `0x${string}`,
+            tokenOut: USDC_SEPOLIA as `0x${string}`,
+            fee: 500,
+            recipient: fromAddress,
+            deadline: BigInt(deadline),
+            amountIn: BigInt(Math.round(amountUsd * 1e18)),
+            amountOutMinimum: BigInt(0),
+            sqrtPriceLimitX96: BigInt(0),
+          },
+        ],
+        account: fromAddress,
+        value: BigInt(Math.round(amountUsd * 1e18)),
+      });
+      viemResult = { success: true, result: viemRes };
+    } else if (isUsdcInput && isEthOutput) {
+      const viemRes = await viemClient.simulateContract({
+        address: UNISWAP_SWAP_ROUTER,
+        abi: UNISWAP_ROUTER_ABI,
+        functionName: "exactInputSingle",
+        args: [
+          {
+            sender: fromAddress,
+            tokenIn: USDC_SEPOLIA as `0x${string}`,
+            tokenOut: "0xEeeeeEeeeEeEeEeEeEeEEEeeeeEeeeeeeeEEeE" as `0x${string}`,
+            fee: 500,
+            recipient: fromAddress,
+            deadline: BigInt(deadline),
+            amountIn: BigInt(Math.round(amountUsd * 1e6)),
+            amountOutMinimum: BigInt(0),
+            sqrtPriceLimitX96: BigInt(0),
+          },
+        ],
+        account: fromAddress,
+      });
+      viemResult = { success: true, result: viemRes };
+    } else {
+      viemResult = {
+        success: false,
+        error: "UNSUPPORTED_SWAP_PAIR",
+      };
+    }
+  } catch (error) {
+    viemResult = {
+      success: false,
+      error: error instanceof Error ? error.message : "VIEM_SIMULATION_FAILED",
+    };
+  }
+
+  const viemSucceeded = viemResult && (viemResult as { success?: boolean }).success === true;
+  const keeperhubSucceeded = keeperhubResult && !(keeperhubResult as { error?: string }).error;
+
+  if (viemSucceeded) {
+    return {
+      order: step.order,
+      protocol: step.protocol,
+      action: step.action,
+      success: true,
+      estimatedGas:
+        typeof (viemResult as { result?: { gas?: bigint } }).result?.gas === "bigint"
+          ? (viemResult as { result: { gas: bigint } }).result.gas.toString()
+          : "0.00042 ETH",
+      note: `Swap simulation successful from ${fromAddress}.`,
+      rawViemResponse: viemResult,
+      rawKeeperHubResponse: keeperhubResult ?? undefined,
+    };
+  }
+
+  if (keeperhubSucceeded) {
+    return {
+      order: step.order,
+      protocol: step.protocol,
+      action: step.action,
+      success: true,
+      estimatedGas:
+        typeof (keeperhubResult as Record<string, unknown>).gasEstimate === "string"
+          ? (keeperhubResult as { gasEstimate: string }).gasEstimate
+          : "0.00042 ETH",
+      note:
+        typeof (keeperhubResult as Record<string, unknown>).message === "string"
+          ? (keeperhubResult as { message: string }).message
+          : "Simulation successful.",
+      rawKeeperHubResponse: keeperhubResult,
+    };
+  }
+
+  return {
+    order: step.order,
+    protocol: step.protocol,
+    action: step.action,
+    success: false,
+    error: viemResult && (viemResult as { error?: string }).error
+      ? (viemResult as { error: string }).error
+      : "SIMULATION_FAILED",
+    note: `Wallet swap simulation failed: ${(viemResult && (viemResult as { error?: string }).error) || (keeperhubResult && (keeperhubResult as { error?: string }).error) || "Unknown error"}`,
     rawViemResponse: viemResult,
     rawKeeperHubResponse: keeperhubResult ?? undefined,
   };
