@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { Navbar } from "@/components/treasury/navbar";
-import { WalletProvider } from "@/components/wallet/context";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -17,10 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full dark antialiased">
       <body className="min-h-full bg-zinc-950 text-zinc-100">
-        <WalletProvider>
-          <Navbar />
-          <main className="min-h-screen">{children}</main>
-        </WalletProvider>
+        {children}
       </body>
     </html>
   );

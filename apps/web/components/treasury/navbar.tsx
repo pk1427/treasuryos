@@ -10,7 +10,9 @@ import { useWallet } from "@/components/wallet/context";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/attestations", label: "Attestations" },
+  { href: "/positions", label: "Positions" },
+  { href: "/execution", label: "Execution" },
+  { href: "/proof-attestation", label: "Proof" },
   { href: "/how-it-works", label: "How it Works" },
 ];
 
