@@ -35,6 +35,7 @@ export const executionStatusEnum = pgEnum("execution_status", [
 
 export const executionPlanStatusEnum = pgEnum("execution_plan_status", [
   "PLANNED",
+  "NOT_ACTIONABLE",
   "APPROVED",
   "SIGNED",
   "REJECTED",
@@ -164,6 +165,27 @@ export const executionPlans = pgTable(
   })
 );
 
+export const executionHistory = pgTable(
+  "execution_history",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    planId: uuid("plan_id")
+      .notNull()
+      .references(() => executionPlans.id, { onDelete: "cascade" }),
+    wallet: text("wallet").notNull(),
+    txHash: text("tx_hash").notNull(),
+    chain: text("chain").notNull(),
+    protocol: text("protocol").notNull(),
+    status: text("status").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (table) => ({
+    planIdx: index("execution_history_plan_idx").on(table.planId),
+    walletIdx: index("execution_history_wallet_idx").on(table.wallet),
+    txHashIdx: uniqueIndex("execution_history_tx_hash_idx").on(table.txHash),
+  })
+);
+
 export const treasuriesRelations = relations(treasuries, ({ many }) => ({
   assets: many(assets),
   analyses: many(analyses),
@@ -200,3 +222,10 @@ export const executionsRelations = relations(executions, ({ one }) => ({
 }));
 
 export const executionPlansRelations = relations(executionPlans, () => ({}));
+
+export const executionHistoryRelations = relations(executionHistory, ({ one }) => ({
+  plan: one(executionPlans, {
+    fields: [executionHistory.planId],
+    references: [executionPlans.id],
+  }),
+}));

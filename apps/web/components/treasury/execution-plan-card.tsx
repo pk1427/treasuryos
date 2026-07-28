@@ -8,12 +8,19 @@ import { Brain, Loader2, RefreshCw } from "lucide-react";
 import type { ExecutionPlan, PlanStep } from "@/lib/ai/plan-types";
 import type { PlanSimulationResult } from "@/lib/ai/plan-simulation";
 import { useWallet } from "@/components/wallet/context";
+import { ExecutionButton } from "@/components/execution-button";
 
 type Props = {
   address: string;
 };
 
-type PlanStatus = "PLANNED" | "APPROVED" | "SIGNED" | "REJECTED" | "STALE";
+type PlanStatus =
+  | "PLANNED"
+  | "NOT_ACTIONABLE"
+  | "APPROVED"
+  | "SIGNED"
+  | "REJECTED"
+  | "STALE";
 
 function actionLabel(action: PlanStep["action"]): string {
   switch (action) {
@@ -51,6 +58,8 @@ function statusVariant(status: PlanStatus): "low" | "medium" | "high" | "critica
   switch (status) {
     case "PLANNED":
       return "default";
+    case "NOT_ACTIONABLE":
+      return "medium";
     case "APPROVED":
       return "low";
     case "SIGNED":
@@ -68,10 +77,12 @@ function statusLabel(status: PlanStatus): string {
   switch (status) {
     case "PLANNED":
       return "Planned — awaiting approval";
+    case "NOT_ACTIONABLE":
+      return "Not actionable";
     case "APPROVED":
       return "Approved — awaiting execution (execution not yet available)";
     case "SIGNED":
-      return "Signed — awaiting execution (execution not yet available)";
+      return "Signed — ready for execution";
     case "REJECTED":
       return "Rejected";
     case "STALE":
@@ -331,9 +342,10 @@ export function ExecutionPlanCard({ address }: Props) {
 
   const isStale = planStatus === "STALE";
   const isRejected = planStatus === "REJECTED";
+  const hasExecutableSteps = (plan?.steps?.length ?? 0) > 0;
   const isConnected = !!walletAddress;
   const walletMatches = isConnected && walletAddress.toLowerCase() === address.toLowerCase();
-  const canAct = planStatus === "PLANNED" && !actionLoading && walletMatches;
+  const canAct = planStatus === "PLANNED" && hasExecutableSteps && !actionLoading && walletMatches;
   const canSign = planStatus === "APPROVED" && !!simulation && !signed && !actionLoading && walletMatches;
 
   return (
@@ -373,10 +385,10 @@ export function ExecutionPlanCard({ address }: Props) {
           </div>
         ) : (
           <>
-            {plan?.steps && plan.steps.length > 0 ? (
+            {plan && hasExecutableSteps ? (
               <div>
                 <p className="mb-3 text-xs font-medium uppercase text-zinc-500">
-                  Planned Steps
+                  Execution Plan
                 </p>
                 <div className="space-y-2">
                   {plan.steps.map((step) => (
@@ -385,7 +397,19 @@ export function ExecutionPlanCard({ address }: Props) {
                 </div>
               </div>
             ) : (
-              <p className="text-sm text-zinc-500">No actionable steps generated.</p>
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                <p className="text-sm font-medium text-amber-300">
+                  No executable actions.
+                </p>
+                <p className="mt-1 text-xs text-zinc-400">
+                  TreasuryOS determined that no deterministic onchain action is
+                  available for this plan.
+                </p>
+                <div className="mt-3 space-y-1 text-xs text-zinc-400">
+                  <p>Execution requires a generated wallet swap step.</p>
+                  <p>Runway issues cannot be solved by an onchain swap alone.</p>
+                </div>
+              </div>
             )}
 
             {plan?.expectedOutcome ? (
@@ -570,17 +594,36 @@ export function ExecutionPlanCard({ address }: Props) {
                </div>
              ) : null}
 
-              {planStatus === "SIGNED" ? (
+             {planStatus === "SIGNED" ? (
                 <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4">
                   <p className="text-sm text-emerald-300">
-                    Signed — awaiting execution (execution not yet available)
+                    Signed — ready for execution
                   </p>
                   <p className="text-xs text-zinc-400 mt-1">
-                    Signing this intent does not execute any transaction or move funds.
-                    Real execution requires a separate step not yet available.
+                    Execution submits one wallet-signed Uniswap swap transaction.
                   </p>
+                  {planId && walletMatches && hasExecutableSteps ? (
+                    <div className="mt-3">
+                      <ExecutionButton
+                        planId={planId}
+                        walletAddress={address}
+                        disabled={!simulation?.overallSuccess}
+                      />
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
+
+             {planStatus === "NOT_ACTIONABLE" ? (
+               <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+                 <p className="text-sm text-amber-300">
+                   Not actionable
+                 </p>
+                 <p className="text-xs text-zinc-400 mt-1">
+                   No deterministic onchain actions were generated.
+                 </p>
+               </div>
+             ) : null}
 
              {isStale && signed ? (
                <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
@@ -670,8 +713,8 @@ export function ExecutionPlanCard({ address }: Props) {
             <div className="rounded-lg border border-white/10 bg-black/20 p-3">
               <p className="text-xs text-zinc-500">
                 {simulation?.simulationMode === "viem-user-context"
-                  ? "Simulation reflects the actual wallet's real state and runs from the connected wallet address. Approving or signing a plan does not move funds. Execution is a separate, not-yet-available step."
-                  : "Approving or signing a plan does not move funds. Execution is a separate, not-yet-available step that will require a wallet signature and a separate explicit execute action."}
+                  ? "Simulation reflects the actual wallet's real state and runs from the connected wallet address. Approving or signing a plan does not move funds. Execute requires a separate wallet transaction."
+                  : "Approving or signing a plan does not move funds. Execute requires a wallet signature and a separate explicit action."}
               </p>
             </div>
           </>

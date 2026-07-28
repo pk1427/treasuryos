@@ -320,6 +320,7 @@ export class ExecutionPlanRepository {
     walletAddress: string;
     reportHash: string;
     planJson: string;
+    status?: "PLANNED" | "NOT_ACTIONABLE";
   }) {
     const db = requireDb();
     const [plan] = await db
@@ -328,7 +329,7 @@ export class ExecutionPlanRepository {
         walletAddress: data.walletAddress.toLowerCase(),
         reportHash: data.reportHash,
         planJson: data.planJson,
-        status: "PLANNED",
+        status: data.status ?? "PLANNED",
       })
       .returning();
     return plan;
@@ -450,9 +451,52 @@ export class ExecutionPlanRepository {
   }
 }
 
+export class ExecutionHistoryRepository {
+  async create(data: {
+    planId: string;
+    wallet: string;
+    txHash: string;
+    chain: string;
+    protocol: string;
+    status: string;
+  }) {
+    const db = requireDb();
+    const [entry] = await db
+      .insert(schema.executionHistory)
+      .values({
+        planId: data.planId,
+        wallet: data.wallet.toLowerCase(),
+        txHash: data.txHash.toLowerCase(),
+        chain: data.chain,
+        protocol: data.protocol,
+        status: data.status,
+      })
+      .onConflictDoUpdate({
+        target: schema.executionHistory.txHash,
+        set: {
+          status: data.status,
+          protocol: data.protocol,
+          chain: data.chain,
+        },
+      })
+      .returning();
+    return entry;
+  }
+
+  async listByWallet(wallet: string) {
+    const db = requireDb();
+    return db
+      .select()
+      .from(schema.executionHistory)
+      .where(eq(schema.executionHistory.wallet, wallet.toLowerCase()))
+      .orderBy(desc(schema.executionHistory.createdAt));
+  }
+}
+
 export const treasuryRepo = new TreasuryRepository();
 export const analysisRepo = new AnalysisRepository();
 export const decisionRepo = new DecisionRepository();
 export const executionRepo = new ExecutionRepository();
 export const attestationRepo = new AttestationRepository();
 export const executionPlanRepo = new ExecutionPlanRepository();
+export const executionHistoryRepo = new ExecutionHistoryRepository();

@@ -19,12 +19,10 @@ export async function POST(request: Request) {
     const briefing = await generateTreasuryBriefing(address, provider);
     return NextResponse.json(briefing);
   } catch (error) {
+    console.warn("AI briefing unavailable.", error);
     return NextResponse.json(
       {
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to generate treasury briefing",
+        error: "AI temporarily unavailable. Please try again.",
       },
       { status: 500 }
     );

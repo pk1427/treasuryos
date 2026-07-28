@@ -8,6 +8,8 @@ import type { AaveAccountSummary, TreasurySnapshot } from "@treasuryos/shared";
 
 const STABLE_COINS = new Set(["USDC", "USDT", "DAI"]);
 const ETH_ASSETS = new Set(["ETH", "WETH"]);
+const TARGET_ETH_RATIO = 0.7;
+const MIN_ETH_SWAP_USD = 1;
 
 function computeSnapshotHash(snapshot: TreasurySnapshot): string {
   const positions = snapshot.positions
@@ -102,12 +104,10 @@ export async function generateExecutionPlan(
 
     if (action.includes("reduce eth exposure") && ethExposureUsd > 0) {
       const ethRatio = ethExposureUsd / totalValue;
-      const targetEthRatio = 0.7;
-      const excessEthUsd = totalValue * (ethRatio - targetEthRatio);
+      const excessEthUsd = totalValue * (ethRatio - TARGET_ETH_RATIO);
       const swapUsd = Math.min(excessEthUsd, ethExposureUsd * 0.3);
-      const availableStableUsd = stableExposureUsd;
 
-      if (swapUsd > 100 && availableStableUsd < totalValue * 0.2) {
+      if (swapUsd >= MIN_ETH_SWAP_USD) {
         const priceResult = await getTokenPrice("ETH");
         const ethPrice = priceResult.price;
         const nativeAmount = ethPrice > 0 ? swapUsd / ethPrice : 0;
@@ -156,6 +156,34 @@ export async function generateExecutionPlan(
       warnings.push(
         "Runway improvement requires capital injection or burn reduction — not addressable by onchain swaps alone."
       );
+    }
+  }
+
+  if (steps.length === 0 && totalValue > 0) {
+    const ethRatio = ethExposureUsd / totalValue;
+    const excessEthUsd = totalValue * (ethRatio - TARGET_ETH_RATIO);
+    const walletEthUsd = walletPositions
+      .filter((p) => p.asset === "ETH")
+      .reduce((sum, p) => sum + p.amountUsd, 0);
+    const swapUsd = Math.min(excessEthUsd, walletEthUsd * 0.3);
+
+    if (swapUsd >= MIN_ETH_SWAP_USD) {
+      const priceResult = await getTokenPrice("ETH");
+      const ethPrice = priceResult.price;
+      const nativeAmount = ethPrice > 0 ? swapUsd / ethPrice : 0;
+
+      order += 1;
+      steps.push({
+        order,
+        protocol: "wallet",
+        action: "swap",
+        fromAsset: "ETH",
+        toAsset: "USDC",
+        amountUsd: swapUsd,
+        amountToken: `${nativeAmount.toFixed(6)} ETH`,
+        reason: `ETH exposure is ${(ethRatio * 100).toFixed(0)}%, above the ${(TARGET_ETH_RATIO * 100).toFixed(0)}% target.`,
+        traceId: "eth-concentration-wallet-swap",
+      });
     }
   }
 

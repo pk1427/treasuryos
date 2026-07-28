@@ -38,6 +38,14 @@ export async function POST(
       );
     }
 
+    const planJson = JSON.parse(plan.planJson);
+    if (!Array.isArray(planJson.steps) || planJson.steps.length === 0) {
+      return NextResponse.json(
+        { error: "Cannot sign plan. Plan contains 0 executable steps." },
+        { status: 409 }
+      );
+    }
+
     if (plan.status !== "APPROVED") {
       return NextResponse.json(
         { error: `Cannot sign plan with status: ${plan.status}. Only APPROVED plans can be signed.` },

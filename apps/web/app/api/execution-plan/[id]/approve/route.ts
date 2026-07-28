@@ -20,6 +20,16 @@ export async function POST(
       );
     }
 
+    const planJson = JSON.parse(plan.planJson);
+    if (!Array.isArray(planJson.steps) || planJson.steps.length === 0) {
+      return NextResponse.json(
+        {
+          error: "Cannot approve plan. Plan contains 0 executable steps.",
+        },
+        { status: 409 }
+      );
+    }
+
     if (plan.status !== "PLANNED") {
       return NextResponse.json(
         {
@@ -54,8 +64,6 @@ export async function POST(
           { status: 500 }
         );
       }
-
-      const planJson = JSON.parse(updated.planJson);
 
       return NextResponse.json({
         ...planJson,

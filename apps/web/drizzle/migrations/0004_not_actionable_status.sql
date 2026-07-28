@@ -1,0 +1,1 @@
+ALTER TYPE "public"."execution_plan_status" ADD VALUE IF NOT EXISTS 'NOT_ACTIONABLE' AFTER 'PLANNED';

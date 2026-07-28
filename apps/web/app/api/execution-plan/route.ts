@@ -30,6 +30,7 @@ export async function POST(request: Request) {
         walletAddress: address,
         reportHash: plan.basedOnReportHash,
         planJson: JSON.stringify(plan),
+        status: plan.steps.length > 0 ? "PLANNED" : "NOT_ACTIONABLE",
       });
 
       return NextResponse.json({

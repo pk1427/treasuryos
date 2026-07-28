@@ -2,6 +2,8 @@
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
 
+const SEPOLIA_CHAIN_ID_HEX = "0xaa36a7";
+
 type WalletState = {
   address: string | null;
   chainId: number | null;
@@ -11,6 +13,12 @@ type WalletState = {
   connect: () => Promise<void>;
   disconnect: () => void;
   signMessage: (message: string) => Promise<{ signature: string; address: string } | null>;
+  sendTransaction: (transaction: {
+    to: string;
+    data: string;
+    value?: string;
+    chainId?: string;
+  }) => Promise<string | null>;
 };
 
 const WalletContext = createContext<WalletState | null>(null);
@@ -90,6 +98,87 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     [address]
   );
 
+  const sendTransaction = useCallback(
+    async (transaction: {
+      to: string;
+      data: string;
+      value?: string;
+      chainId?: string;
+    }): Promise<string | null> => {
+      if (!address) return null;
+
+      try {
+        const ethereum = (window as unknown as {
+          ethereum?: {
+            request: (args: { method: string; params: unknown[] }) => Promise<unknown>;
+          };
+        }).ethereum;
+        if (!ethereum) throw new Error("Wallet not connected");
+
+        const currentChain = (await ethereum.request({
+          method: "eth_chainId",
+          params: [],
+        })) as string;
+
+        if (currentChain.toLowerCase() !== SEPOLIA_CHAIN_ID_HEX) {
+          try {
+            await ethereum.request({
+              method: "wallet_switchEthereumChain",
+              params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }],
+            });
+          } catch (switchError) {
+            const errorCode = (switchError as { code?: number }).code;
+            if (errorCode === 4902) {
+              await ethereum.request({
+                method: "wallet_addEthereumChain",
+                params: [
+                  {
+                    chainId: SEPOLIA_CHAIN_ID_HEX,
+                    chainName: "Sepolia",
+                    nativeCurrency: {
+                      name: "Sepolia Ether",
+                      symbol: "SepoliaETH",
+                      decimals: 18,
+                    },
+                    rpcUrls: ["https://ethereum-sepolia-rpc.publicnode.com"],
+                    blockExplorerUrls: ["https://sepolia.etherscan.io"],
+                  },
+                ],
+              });
+            } else {
+              throw switchError;
+            }
+          }
+
+          setChainId(parseInt(SEPOLIA_CHAIN_ID_HEX, 16));
+        }
+
+        const txHash = (await ethereum.request({
+          method: "eth_sendTransaction",
+          params: [
+            {
+              from: address,
+              to: transaction.to,
+              data: transaction.data,
+              value: transaction.value ?? "0x0",
+              chainId: transaction.chainId,
+            },
+          ],
+        })) as string;
+
+        return txHash;
+      } catch (err) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : "Failed to send transaction";
+        setError(message);
+        throw new Error(message);
+      }
+    },
+    [address]
+  );
+
   return (
     <WalletContext.Provider
       value={{
@@ -101,6 +190,7 @@ export function WalletProvider({ children }: { children: ReactNode }) {
         connect,
         disconnect,
         signMessage,
+        sendTransaction,
       }}
     >
       {children}

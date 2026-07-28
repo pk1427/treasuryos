@@ -47,6 +47,12 @@ export async function POST(
     }
 
     const plan = JSON.parse(planRecord.planJson) as ExecutionPlan;
+    if (!Array.isArray(plan.steps) || plan.steps.length === 0) {
+      return NextResponse.json(
+        { error: "Cannot simulate plan. Plan contains 0 executable steps." },
+        { status: 409 }
+      );
+    }
 
     let snapshot: TreasurySnapshot | undefined;
     let snapshotWarning: string | undefined;
