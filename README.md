@@ -1,168 +1,332 @@
+<div align="center">
+
 # TreasuryOS
 
-**Treasury Risk Intelligence with Onchain Attestations**
+### AI Treasury Intelligence with Owner-Controlled Execution
 
-> Read-only treasury scanning, risk scoring, stress testing, and verifiable KeeperHub attestations.
+Analyze treasury risk, generate deterministic execution plans, execute supported onchain actions, and publish verifiable proof.
 
-TreasuryOS scans Sepolia treasury addresses, scores detected wallet assets, stress tests portfolios, and publishes immutable risk attestations through KeeperHub.
+[Live Demo](https://treasuryos-web.vercel.app) • [Architecture](#architecture) • [Features](#features) • [Quick Start](#quick-start)
 
-## Architecture
+</div>
+
+---
+
+## Overview
+
+TreasuryOS is an AI-native treasury operating system for onchain organizations.
+
+It combines treasury analytics, deterministic execution planning, and verifiable onchain attestations into a single workflow.
+
+TreasuryOS is designed around a simple operating model:
 
 ```
-Sepolia Treasury Wallet
-        ↓
-Blockchain Service (Viem)
-        ↓
-Treasury Analytics Engine
-        ↓
-Risk Report + Hash
-        ↓
-KeeperHub Attestation Publish
-        ↓
-Attestation Indexer + PostgreSQL
+Scan
+→ Analyze
+→ Plan
+→ Execute
+→ Attest
 ```
 
-## Tech Stack
+Unlike autonomous AI agents, TreasuryOS is **non-custodial**.
+
+Every execution requires explicit wallet approval from the treasury owner.
+
+---
+
+# Features
+
+## Treasury Intelligence
+
+- Wallet asset discovery
+- Protocol position discovery
+- Unified treasury portfolio
+- Portfolio valuation
+- Risk scoring
+- Stress simulation
+- AI treasury briefing
+
+---
+
+## Owner-Controlled Execution
+
+- Deterministic execution planning
+- Wallet ownership verification
+- Execution simulation
+- Wallet-signed execution
+- Receipt verification
+
+---
+
+## Verifiable Proof
+
+- Report hashing
+- KeeperHub integration
+- Onchain attestation
+- Proof history
+- Audit trail
+
+---
+
+# Current Stage
+
+TreasuryOS Stage 1 is complete.
+
+Current capabilities include:
+
+- Wallet Intelligence
+- Uniswap V3 Position Discovery
+- Uniswap V3 Swap Execution
+- Risk Engine
+- Recommendation Engine
+- Execution Planner
+- Execution Adapter Registry
+- KeeperHub Attestations
+
+Current network:
+
+- Ethereum Sepolia
+
+---
+
+# Architecture
+
+```
+Wallet Adapter
+        │
+        ▼
+Protocol Position Adapters
+        │
+        ▼
+Unified Portfolio
+        │
+        ▼
+Risk Engine
+        │
+        ▼
+Recommendation Engine
+        │
+        ▼
+Execution Planner
+        │
+        ▼
+Execution Adapter Registry
+        │
+        ▼
+Uniswap V3 Execution Adapter
+        │
+        ▼
+Simulation
+        │
+        ▼
+Wallet Signature
+        │
+        ▼
+Execution
+        │
+        ▼
+Receipt Verification
+        │
+        ▼
+KeeperHub Attestation
+```
+
+---
+
+# Execution Flow
+
+TreasuryOS follows an owner-controlled execution model.
+
+```
+Connect Wallet
+        │
+        ▼
+Scan Treasury
+        │
+        ▼
+Risk Analysis
+        │
+        ▼
+Recommendation
+        │
+        ▼
+Execution Plan
+        │
+        ▼
+Simulation
+        │
+        ▼
+Wallet Signature
+        │
+        ▼
+Execute Transaction
+        │
+        ▼
+Verify Receipt
+        │
+        ▼
+Publish Attestation
+```
+
+TreasuryOS never executes autonomously.
+
+The connected wallet remains the only transaction signer.
+
+---
+
+# Supported Integrations
+
+## Wallet Adapter
+
+- Native ETH
+- ERC20 balances
+
+## Position Adapters
+
+| Protocol | Status |
+|----------|--------|
+| Wallet | ✅ |
+| Uniswap V3 Positions | ✅ |
+
+## Execution Adapters
+
+| Adapter | Status |
+|---------|--------|
+| Uniswap V3 Router | ✅ |
+
+---
+
+# Tech Stack
 
 | Layer | Technology |
-|-------|-----------|
-| Frontend | Next.js, TypeScript, Tailwind |
-| Backend | Next.js Route Handlers, Server Actions |
+|--------|------------|
+| Frontend | Next.js, React, TypeScript, Tailwind CSS |
+| Backend | Next.js Route Handlers |
+| Blockchain | Ethereum Sepolia, Viem |
+| Smart Contracts | Solidity |
 | Database | PostgreSQL, Drizzle ORM |
-| Blockchain | Sepolia, Viem |
-| Indexing | packages/indexer |
-| Execution | KeeperHub MCP / API |
+| AI | OpenAI |
+| Attestation | KeeperHub |
 
-## Quick Start
+---
+
+# Quick Start
+
+## Clone
 
 ```bash
-# Install dependencies
+git clone https://github.com/pk1427/treasuryos.git
+
 cd treasuryos
+```
+
+## Install
+
+```bash
 npm install
+```
 
-# Copy environment variables
+## Configure
+
+```bash
 cp apps/web/.env.example apps/web/.env.local
+```
 
-# Start development server
+Configure:
+
+```
+SEPOLIA_RPC_URL=
+
+DATABASE_URL=
+
+OPENAI_API_KEY=
+
+KEEPERHUB_API_KEY=
+
+ATTESTATION_REGISTRY_ADDRESS=
+
+NEXT_PUBLIC_CHAIN=sepolia
+```
+
+## Run
+
+```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), click **Launch Dashboard**, and scan a Sepolia treasury address.
-
-## V1 Flow
-
-1. Enter a Sepolia treasury address
-2. TreasuryOS reads native ETH and supported ERC20 balances
-3. Risk engine scores concentration, counterparty, and liquidity exposure
-4. Stress simulator runs scenarios for detected assets
-5. Risk report is hashed
-6. KeeperHub simulates and publishes the attestation onchain
-7. The indexer decodes `AttestationPublished` and persists proof history
-8. The Attestations page links every proof to Sepolia Etherscan
-
-## V1 Verified Flow
-
-TreasuryOS v1 has been verified end to end on Sepolia:
+Open
 
 ```
-Treasury Address
-        ↓
-Real Wallet Balances
-        ↓
-Risk Score
-        ↓
-Stress Test
-        ↓
-Report Hash
-        ↓
-KeeperHub Publish
-        ↓
-AttestationPublished Event
-        ↓
-Database History
-        ↓
-Etherscan Verification
+http://localhost:3000
 ```
 
-The scanner intentionally returns less data rather than invented data. Empty wallets show `$0`, no positions, and `N/A` risk rating.
+---
 
-## Project Structure
+# Project Structure
 
 ```
-apps/web/
-├── app/
-│   ├── dashboard/      # Main treasury dashboard
-│   ├── treasury/       # Asset holdings view
-│   ├── decisions/      # AI recommendations
-│   ├── executions/     # Audit trail
-│   └── api/            # REST endpoints
-├── components/
-│   ├── charts/         # Asset allocation charts
-│   ├── analytics/      # Metrics grid
-│   ├── risks/          # Risk cards
-│   ├── decisions/      # Recommendation cards
-│   └── treasury/       # Sidebar, connect wallet
-├── lib/
-│   ├── blockchain/     # Viem integration
-│   ├── analytics/      # Runway, concentration, risk scoring
-│   ├── ai/             # AI CFO agent
-│   ├── keeperhub/      # Simulation + execution
-│   └── db/             # Drizzle client
-├── server/
-│   ├── services/       # Treasury service orchestration
-│   └── repositories/   # Data access layer
-├── drizzle/            # Schema + migrations
-└── types/              # Shared TypeScript types
+apps/
+└── web/
+    ├── app/
+    ├── components/
+    ├── lib/
+    └── server/
+
+packages/
+├── contracts/
+├── indexer/
+├── risk-engine/
+├── simulator/
+├── attestation/
+└── shared/
 ```
 
-## Environment Variables
+---
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | No | PostgreSQL connection |
-| `SEPOLIA_RPC_URL` | Yes | Sepolia RPC endpoint |
-| `OPENAI_API_KEY` | No | Enables AI-generated explanations |
-| `KEEPERHUB_API_KEY` | No | Enables live KeeperHub execution |
-| `ATTESTATION_REGISTRY_ADDRESS` | Yes | Sepolia AttestationRegistry address |
-| `NEXT_PUBLIC_CHAIN` | Yes | Use `sepolia` |
-## Database Setup
+# Roadmap
 
-```bash
-npm run db:push --workspace=web
-```
+## ✅ Stage 1
 
-The `attestations` table stores indexed `AttestationPublished` events. Blockchain logs remain the source of truth; the database is the app's queryable history.
+- Wallet Intelligence
+- Unified Portfolio
+- Risk Engine
+- Recommendation Engine
+- Uniswap Position Adapter
+- Uniswap Execution Adapter
+- Execution Planner
+- KeeperHub Attestations
 
-## V2 Adapter System
+---
 
-TreasuryOS V2 introduces protocol adapters. The scanner still reads wallet ETH and ERC20 balances, then appends positions discovered by enabled adapters.
+## 🚧 Stage 2
 
-Current adapter support:
+- Additional Position Adapters
+- Additional Execution Adapters
+- Cross-protocol treasury management
 
-| Adapter | Network | Positions |
-|---------|---------|-----------|
-| Uniswap V3 | Ethereum Sepolia | LP NFTs via NonfungiblePositionManager |
-| Aave V3 | Ethereum Sepolia | Supplied balances for priced reserves |
+---
 
-Protocol deployment addresses live in `packages/indexer/src/protocols`. If protocol reads fail, TreasuryOS falls back to V1 wallet scanning without inventing positions.
+## 📈 Stage 3
 
-## API Endpoints
+- Treasury PnL
+- Treasury Accounting
+- x402 API Monetization
 
-- `POST /api/report` — Scan, score, stress test, and hash a risk report
-- `POST /api/attestation` — Simulate or publish a KeeperHub attestation
-- `GET /api/attestations` — List persisted attestation history
-- `GET /api/treasury?wallet=0x...` — Legacy treasury dashboard data
+---
 
-## Analytics Engine
+# Security Principles
 
-| Metric | Formula |
-|--------|---------|
-| Treasury Value | Sum of asset USD values |
-| Runway | Treasury Value / Monthly Burn |
-| Concentration | Largest asset ÷ Treasury value |
-| Idle Capital | Assets untouched for 30+ days |
-| Risk Score | Aggregate of runway, concentration, idle capital |
+TreasuryOS follows four principles.
 
-## License
+- Non-custodial
+- Owner-controlled execution
+- Deterministic planning
+- Verifiable onchain proof
+
+TreasuryOS never holds user funds.
+
+---
+
+# License
 
 MIT
