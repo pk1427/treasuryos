@@ -59,6 +59,50 @@ Instead of switching between multiple tools, treasury operators can:
 
 ---
 
+---
+
+# Screenshots
+
+## Landing Experience
+
+Choose between analyzing any public treasury or managing your own treasury with owner-controlled execution.
+
+![Landing](docs/images/Landing-Page.png)
+
+---
+
+## Treasury Command Center
+
+Analyze portfolio health, understand risk, and review AI-powered treasury recommendations from a unified dashboard.
+
+![Dashboard](docs/images/Dashboard-Page.png)
+
+---
+
+## Execution Workflow
+
+Review deterministic execution plans, simulate transactions, and execute supported treasury actions through explicit wallet approval.
+
+![Execution](docs/images/Execution-Page.png)
+
+---
+
+## Portfolio & Positions
+
+View wallet balances and protocol positions discovered across supported integrations.
+
+![Positions](docs/images/Positions-Page.png)
+
+---
+
+## Proof Trail
+
+Every completed execution is linked to a report hash, transaction receipt, and KeeperHub attestation for a verifiable audit trail.
+
+![Proof Trail](docs/images/Trail-Page.png)
+
+---
+
 # Features
 
 ## Treasury Intelligence
