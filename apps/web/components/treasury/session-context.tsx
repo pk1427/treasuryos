@@ -96,18 +96,22 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const walletAddress = wallet.address;
 
-    if (walletAddress && mode === "analyze") {
-      const scanned = reportResponse?.report.address ?? analyzedAddress;
-      const walletOwnsTreasury =
-        Boolean(scanned) &&
-        walletAddress.toLowerCase() === scanned.toLowerCase();
+    if (!walletAddress || mode !== "analyze") return;
 
-      if (!walletOwnsTreasury) {
-        window.queueMicrotask(() => {
-          setMode("manage");
-          setAnalyzedAddress(walletAddress);
-        });
-      }
+    const scanned = reportResponse?.report.address ?? analyzedAddress;
+
+    if (!scanned) {
+      window.queueMicrotask(() => {
+        setMode("manage");
+        setAnalyzedAddress(walletAddress);
+      });
+      return;
+    }
+
+    if (walletAddress.toLowerCase() === scanned.toLowerCase()) {
+      window.queueMicrotask(() => {
+        setMode("manage");
+      });
     }
   }, [wallet.address, mode, analyzedAddress, reportResponse?.report.address]);
 

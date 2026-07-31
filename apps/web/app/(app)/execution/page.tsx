@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import {
   Activity,
+  ArrowRight,
   CheckCircle2,
   ExternalLink,
   Lock,
@@ -14,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 import { shortenHash } from "@/lib/utils";
 import { useWallet } from "@/components/wallet/context";
 import { useTreasurySession } from "@/components/treasury/session-context";
@@ -178,6 +180,9 @@ export default function ExecutionPage() {
             <h1 className="mt-1 text-2xl font-semibold text-white">
               Execution Plan
             </h1>
+            <p className="mt-1 text-sm text-zinc-400">
+              Review, simulate, sign, and execute owner-controlled treasury actions.
+            </p>
           </div>
         </div>
       </div>
@@ -209,14 +214,24 @@ export default function ExecutionPage() {
             <div className="flex gap-2 border-b border-white/10 pb-2">
               <button
                 type="button"
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium ${activeTab === "live" ? "bg-cyan-400/10 text-cyan-300" : "text-zinc-500 hover:text-zinc-300"}`}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-sm font-medium transition",
+                  activeTab === "live"
+                    ? "bg-cyan-400/10 text-cyan-300"
+                    : "text-zinc-500 hover:text-zinc-300"
+                )}
                 onClick={() => setActiveTab("live")}
               >
                 Live Plan
               </button>
               <button
                 type="button"
-                className={`rounded-lg px-3 py-1.5 text-sm font-medium ${activeTab === "history" ? "bg-cyan-400/10 text-cyan-300" : "text-zinc-500 hover:text-zinc-300"}`}
+                className={cn(
+                  "rounded-lg px-3 py-1.5 text-sm font-medium transition",
+                  activeTab === "history"
+                    ? "bg-cyan-400/10 text-cyan-300"
+                    : "text-zinc-500 hover:text-zinc-300"
+                )}
                 onClick={() => setActiveTab("history")}
               >
                 Execution History
@@ -362,7 +377,7 @@ export default function ExecutionPage() {
                 ) : null}
               </div>
             ) : plan && plan.steps.length === 0 ? (
-              <Card>
+              <Card className="rounded-xl bg-zinc-900/70">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Activity className="h-5 w-5 text-violet-300" />
@@ -381,7 +396,7 @@ export default function ExecutionPage() {
                 </CardContent>
               </Card>
             ) : (
-              <Card>
+              <Card className="rounded-xl bg-zinc-900/70">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Activity className="h-5 w-5 text-violet-300" />
@@ -423,15 +438,15 @@ function ExecutionTicket({
   const primaryStep = plan.steps[0];
 
   return (
-    <Card>
+    <Card className="rounded-xl bg-zinc-900/70">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Activity className="h-5 w-5 text-violet-300" />
           Pre-Trade Ticket
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
+      <CardContent className="space-y-6">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
             <p className="text-xs uppercase text-zinc-500">Action</p>
             <p className="mt-1 text-lg font-semibold text-zinc-100">
@@ -456,9 +471,9 @@ function ExecutionTicket({
           </div>
         </div>
 
-        <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 p-3">
+        <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-cyan-200">Quote</p>
-          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+          <div className="mt-3 grid gap-4 sm:grid-cols-3">
             <div>
               <p className="text-xs text-zinc-500">Est. output</p>
               <p className="font-mono text-sm text-emerald-300">~{swapStep?.amountUsd?.toLocaleString() ?? "—"} USDC</p>
@@ -475,8 +490,8 @@ function ExecutionTicket({
         </div>
 
         <div>
-          <p className="mb-2 text-xs font-medium uppercase text-zinc-500">Preconditions</p>
-          <div className="space-y-1">
+          <p className="mb-3 text-xs font-medium uppercase text-zinc-500">Preconditions</p>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             <PreconditionCheck label="Wallet owner verified" passed={true} />
             <PreconditionCheck label="Report fresh" passed={planStatus !== "STALE"} />
             <PreconditionCheck label="Plan approved" passed={["APPROVED", "SIGNED"].includes(planStatus)} />
@@ -492,8 +507,7 @@ function ExecutionTicket({
             ))}
           </div>
         ) : null}
-
-</CardContent>
+      </CardContent>
     </Card>
   );
 }
@@ -518,8 +532,8 @@ function LockedPanel({ mode, onConnect }: { mode: "analyze" | "manage"; onConnec
       : "No wallet is connected. Connect the treasury owner wallet to unlock execution planning.";
 
   return (
-    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6">
-      <div className="flex items-start gap-3">
+    <Card className="rounded-xl border-amber-500/30 bg-amber-500/10">
+      <CardContent className="flex items-start gap-3 p-6">
         <Lock className="mt-0.5 h-5 w-5 text-amber-300" />
         <div>
           <p className="font-medium text-amber-200">Manage mode required</p>
@@ -531,15 +545,15 @@ function LockedPanel({ mode, onConnect }: { mode: "analyze" | "manage"; onConnec
             Connect Wallet
           </Button>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
 function MismatchedWalletPanel({ connectedWallet, analyzedAddress }: { connectedWallet: string | null; analyzedAddress: string }) {
   return (
-    <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-6">
-      <div className="flex items-start gap-3">
+    <Card className="rounded-xl border-red-500/30 bg-red-500/10">
+      <CardContent className="flex items-start gap-3 p-6">
         <Lock className="mt-0.5 h-5 w-5 text-red-300" />
         <div>
           <p className="font-medium text-red-200">Execution unavailable for this treasury</p>
@@ -550,42 +564,52 @@ function MismatchedWalletPanel({ connectedWallet, analyzedAddress }: { connected
             Execution is not forced — connect the wallet that controls this treasury to proceed.
           </p>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
 function ExecutionConfirmation({ result, reportHash }: { result: { txHash: string; explorer: string; status: string }; reportHash?: string }) {
   return (
-    <section className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-6">
-      <div className="flex items-center gap-3 mb-4">
-        <CheckCircle2 className="h-6 w-6 text-emerald-400" />
-        <h2 className="text-xl font-semibold text-emerald-200">Execution Complete</h2>
-      </div>
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-zinc-400">Transaction</span>
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs text-zinc-300">{shortenHash(result.txHash)}</span>
-            <Button asChild variant="ghost" size="icon" aria-label="View on Etherscan">
-              <a href={result.explorer} target="_blank" rel="noreferrer">
-                <ExternalLink className="h-4 w-4" />
-              </a>
-            </Button>
-          </div>
+    <Card className="rounded-2xl border-emerald-500/30 bg-emerald-500/10">
+      <CardContent className="p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <CheckCircle2 className="h-6 w-6 text-emerald-400" />
+          <h2 className="text-xl font-semibold text-emerald-200">Execution Complete</h2>
         </div>
-        <div className="flex items-center justify-between">
-          <span className="text-sm text-zinc-400">Status</span>
-          <Badge variant="low" className="normal-case">{result.status}</Badge>
-        </div>
-        {reportHash ? (
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-400">Report Hash</span>
-            <span className="font-mono text-xs text-zinc-300">{shortenHash(reportHash)}</span>
+            <span className="text-sm text-zinc-400">Transaction</span>
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs text-zinc-300">{shortenHash(result.txHash)}</span>
+              <Button asChild variant="ghost" size="icon" aria-label="View on Etherscan">
+                <a href={result.explorer} target="_blank" rel="noreferrer">
+                  <ExternalLink className="h-4 w-4" />
+                </a>
+              </Button>
+            </div>
           </div>
-        ) : null}
-      </div>
-    </section>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-zinc-400">Status</span>
+            <Badge variant="low" className="normal-case">{result.status}</Badge>
+          </div>
+          {reportHash ? (
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-zinc-400">Report Hash</span>
+              <span className="font-mono text-xs text-zinc-300">{shortenHash(reportHash)}</span>
+            </div>
+          ) : null}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Button asChild variant="secondary" size="sm">
+            <a href="/proof-trail">View Proof Trail <ArrowRight className="h-4 w-4" /></a>
+          </Button>
+          <Button asChild variant="outline" size="sm">
+            <a href="/proof-attestation">View Attestations</a>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -598,31 +622,31 @@ function BeforeAfterPanel({ ethExposureBefore, ethExposureAfter, usdcBalanceBefo
   deltaEth: number;
 }) {
   return (
-    <Card>
+    <Card className="rounded-xl bg-zinc-900/70">
       <CardHeader>
         <CardTitle className="text-base">Before / After</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-lg border border-white/10 bg-zinc-950/50 p-3">
+          <div className="rounded-lg border border-white/10 bg-zinc-950/50 p-4">
             <p className="text-xs uppercase text-zinc-500">ETH Exposure</p>
-            <div className="mt-1 flex items-baseline gap-2">
+            <div className="mt-2 flex items-baseline gap-2">
               <span className="font-mono text-sm text-zinc-400">{(ethExposureBefore * 100).toFixed(0)}%</span>
               <span className="text-xs text-zinc-600">→</span>
               <span className="font-mono text-sm text-emerald-300">{(ethExposureAfter * 100).toFixed(0)}%</span>
             </div>
           </div>
-          <div className="rounded-lg border border-white/10 bg-zinc-950/50 p-3">
+          <div className="rounded-lg border border-white/10 bg-zinc-950/50 p-4">
             <p className="text-xs uppercase text-zinc-500">USDC Balance</p>
-            <div className="mt-1 flex items-baseline gap-2">
+            <div className="mt-2 flex items-baseline gap-2">
               <span className="font-mono text-sm text-zinc-400">${usdcBalanceBefore.toLocaleString()}</span>
               <span className="text-xs text-zinc-600">→</span>
               <span className="font-mono text-sm text-emerald-300">${usdcBalanceAfter.toLocaleString()}</span>
             </div>
           </div>
-          <div className="rounded-lg border border-white/10 bg-zinc-950/50 p-3">
+          <div className="rounded-lg border border-white/10 bg-zinc-950/50 p-4">
             <p className="text-xs uppercase text-zinc-500">Delta</p>
-            <p className="mt-1 font-mono text-sm text-emerald-300">
+            <p className="mt-2 font-mono text-sm text-emerald-300">
               +${deltaUsd.toLocaleString()} USDC / −{deltaEth.toFixed(4)} ETH
             </p>
           </div>
@@ -639,7 +663,7 @@ function ProofOfExecution({ txHash, explorer, reportHash, attestationHash }: {
   attestationHash?: string;
 }) {
   return (
-    <Card>
+    <Card className="rounded-xl bg-zinc-900/70">
       <CardHeader>
         <CardTitle className="text-base">Proof of Execution</CardTitle>
       </CardHeader>
@@ -670,7 +694,7 @@ function ProofOfExecution({ txHash, explorer, reportHash, attestationHash }: {
           </div>
         ) : null}
         <Button asChild variant="secondary" size="sm">
-          <a href="/proof-trail">View full Proof Trail →</a>
+          <a href="/proof-trail">View full Proof Trail <ArrowRight className="h-4 w-4" /></a>
         </Button>
       </CardContent>
     </Card>
@@ -706,46 +730,52 @@ function ExecutionHistory({
 }) {
   if (history.length === 0) {
     return (
-      <div className="rounded-lg border border-dashed border-zinc-800 p-8 text-center">
-        <Activity className="mx-auto mb-3 h-8 w-8 text-zinc-600" />
-        <p className="text-sm text-zinc-500">No execution history yet. Execute a plan to see it here.</p>
-      </div>
+      <Card className="rounded-xl border-dashed border-zinc-700">
+        <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+          <Activity className="mb-3 h-8 w-8 text-zinc-600" />
+          <p className="text-sm text-zinc-500">No execution history yet. Execute a plan to see it here.</p>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-white/10">
-      <table className="w-full min-w-[720px] text-left text-sm">
-        <thead className="bg-white/[0.04] text-xs uppercase text-zinc-500">
-          <tr>
-            <th className="px-4 py-3">Date</th>
-            <th className="px-4 py-3">Action</th>
-            <th className="px-4 py-3">Tx Hash</th>
-            <th className="px-4 py-3">Status</th>
-            <th className="px-4 py-3">Proof</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-white/10">
-          {history.map((entry) => (
-            <tr key={entry.txHash} className="bg-zinc-950/40">
-              <td className="px-4 py-3 text-zinc-300">{entry.date}</td>
-              <td className="px-4 py-3 text-zinc-200">{entry.action}</td>
-              <td className="px-4 py-3">
-                <span className="font-mono text-xs text-zinc-300">{shortenHash(entry.txHash)}</span>
-              </td>
-              <td className="px-4 py-3">
-                <Badge variant="low" className="normal-case">{entry.status}</Badge>
-              </td>
-              <td className="px-4 py-3">
-                <Button asChild variant="ghost" size="sm">
-                  <a href={`/proof-trail?tx=${entry.txHash}`}>View Trail →</a>
-                </Button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <Card className="rounded-xl bg-zinc-900/70">
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-left text-sm">
+            <thead className="border-b border-white/10 text-xs uppercase text-zinc-500">
+              <tr>
+                <th className="px-4 py-3 font-medium">Date</th>
+                <th className="px-4 py-3 font-medium">Action</th>
+                <th className="px-4 py-3 font-medium">Tx Hash</th>
+                <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Proof</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {history.map((entry) => (
+                <tr key={entry.txHash} className="bg-zinc-950/40">
+                  <td className="px-4 py-3 text-zinc-300">{entry.date}</td>
+                  <td className="px-4 py-3 text-zinc-200">{entry.action}</td>
+                  <td className="px-4 py-3">
+                    <span className="font-mono text-xs text-zinc-300">{shortenHash(entry.txHash)}</span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Badge variant="low" className="normal-case">{entry.status}</Badge>
+                  </td>
+                  <td className="px-4 py-3">
+                    <Button asChild variant="ghost" size="sm">
+                      <a href={`/proof-trail?tx=${entry.txHash}`}>View Trail <ArrowRight className="h-4 w-4" /></a>
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -767,7 +797,7 @@ function StagedLoading({ steps }: { steps: string[] }) {
   }, [steps]);
 
   return (
-    <Card>
+    <Card className="rounded-xl bg-zinc-900/70">
       <CardContent className="flex flex-col gap-3 p-6">
         <div className="flex items-center gap-2 text-sm text-zinc-400">
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -777,7 +807,7 @@ function StagedLoading({ steps }: { steps: string[] }) {
           {steps.map((step, i) => (
             <div
               key={step}
-              className={`h-1 flex-1 rounded-full ${i <= currentStep ? "bg-cyan-400" : "bg-zinc-800"}`}
+              className={cn("h-1 flex-1 rounded-full", i <= currentStep ? "bg-cyan-400" : "bg-zinc-800")}
             />
           ))}
         </div>
@@ -788,7 +818,7 @@ function StagedLoading({ steps }: { steps: string[] }) {
 
 function ExecutionError({ error, onRetry }: { error: string; onRetry: () => void }) {
   return (
-    <Card>
+    <Card className="rounded-xl border-red-500/30 bg-red-500/10">
       <CardContent className="p-6">
         <p className="text-sm text-red-400">{error}</p>
         <p className="mt-2 text-xs text-zinc-500">

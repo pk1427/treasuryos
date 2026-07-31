@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 const analyzeFlow = [
@@ -89,16 +90,22 @@ export default function HowItWorksPage() {
     <div className="min-h-screen bg-zinc-950">
       <div className="border-b border-white/10 bg-zinc-950/90">
         <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-          <Badge variant="outline" className="mb-5 border-cyan-400/30 text-cyan-300">
-            TreasuryOS v5.5
-          </Badge>
+          <div className="flex items-center gap-3 mb-5">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-violet-500 shadow-[0_0_28px_rgba(99,102,241,0.35)]">
+              <ShieldCheck className="h-5 w-5 text-white" />
+            </span>
+            <span className="text-xl font-bold text-zinc-100">TreasuryOS</span>
+          </div>
           <div className="grid gap-8 lg:grid-cols-[1fr_380px] lg:items-end">
             <div>
+              <Badge variant="outline" className="mb-5 border-cyan-400/30 text-cyan-300">
+                How it works
+              </Badge>
               <h1 className="max-w-4xl text-4xl font-semibold leading-tight text-white sm:text-5xl">
                 From treasury intelligence to owner-verified execution proof
               </h1>
               <p className="mt-5 max-w-3xl text-base leading-7 text-zinc-400">
-                TreasuryOS now has two distinct operating modes. Analyze mode is
+                TreasuryOS has two distinct operating modes. Analyze mode is
                 read-only treasury intelligence. Manage mode unlocks execution
                 only after wallet ownership is verified, simulation passes, and
                 the user explicitly submits the transaction.
@@ -151,49 +158,54 @@ export default function HowItWorksPage() {
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="rounded-xl border border-white/10 bg-zinc-900/70 p-5">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-400/10 text-emerald-300">
-                <Lock className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                  Execution guardrails
-                </p>
-                <h2 className="text-lg font-semibold text-white">
-                  What must be true before funds can move
-                </h2>
-              </div>
-            </div>
-
-            <div className="mt-5 grid gap-3">
-              {guardrails.map((item) => (
-                <div key={item} className="flex items-start gap-3 text-sm text-zinc-300">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
-                  {item}
+          <Card className="rounded-xl bg-zinc-900/70">
+            <CardHeader className="pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-400/10 text-emerald-300">
+                  <Lock className="h-5 w-5" />
                 </div>
-              ))}
-            </div>
-          </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                    Execution guardrails
+                  </p>
+                  <h2 className="text-lg font-semibold text-white">
+                    What must be true before funds can move
+                  </h2>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3">
+                {guardrails.map((item) => (
+                  <div key={item} className="flex items-start gap-3 text-sm text-zinc-300">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
 
-          <div className="overflow-hidden rounded-xl border border-white/10 bg-zinc-900/70">
-            <div className="border-b border-white/10 p-5">
+          <Card className="rounded-xl bg-zinc-900/70 overflow-hidden">
+            <CardHeader className="border-b border-white/10">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-300">
                   <FileJson className="h-5 w-5" />
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                  Proof pipeline
+                    Proof pipeline
                   </p>
                   <h2 className="text-lg font-semibold text-white">
                     A distinct verification record after execution
                   </h2>
                 </div>
               </div>
-            </div>
-            <ProofStrip />
-          </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <ProofPipeline />
+            </CardContent>
+          </Card>
         </section>
       </main>
     </div>
@@ -216,37 +228,39 @@ function ModePanel({
   highlighted?: boolean;
 }) {
   return (
-    <section
+    <Card
       className={cn(
-        "rounded-xl border bg-zinc-900/70 p-5",
+        "rounded-xl bg-zinc-900/70",
         highlighted ? "border-cyan-400/30" : "border-white/10"
       )}
     >
-      <div className="flex items-start gap-3">
-        <div
-          className={cn(
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg",
-            highlighted ? "bg-cyan-400/10 text-cyan-300" : "bg-white/[0.04] text-zinc-300"
-          )}
-        >
-          <Icon className="h-5 w-5" />
+      <CardHeader className="pb-4">
+        <div className="flex items-start gap-3">
+          <div
+            className={cn(
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg",
+              highlighted ? "bg-cyan-400/10 text-cyan-300" : "bg-white/[0.04] text-zinc-300"
+            )}
+          >
+            <Icon className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              {eyebrow}
+            </p>
+            <h2 className="mt-1 text-xl font-semibold text-white">{title}</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">{body}</p>
+          </div>
         </div>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            {eyebrow}
-          </p>
-          <h2 className="mt-1 text-xl font-semibold text-white">{title}</h2>
-          <p className="mt-2 text-sm leading-6 text-zinc-400">{body}</p>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-3">
+          {steps.map((step, index) => (
+            <FlowStep key={step.title} step={step} index={index} />
+          ))}
         </div>
-      </div>
-
-      <div className="mt-6 grid gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">Manage mode walkthrough</p>
-        {steps.map((step, index) => (
-          <FlowStep key={step.title} step={step} index={index} />
-        ))}
-      </div>
-    </section>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -275,17 +289,17 @@ function FlowStep({
   );
 }
 
-function ProofStrip() {
+function ProofPipeline() {
   const steps = [
-    { label: "Report", icon: FileJson },
-    { label: "Simulate", icon: Waves },
-    { label: "Publish", icon: RadioTower },
-    { label: "Attest", icon: BadgeCheck },
-    { label: "Proof", icon: Sparkles },
+    { label: "Report", icon: FileJson, description: "Risk report generated and hashed" },
+    { label: "Simulate", icon: Waves, description: "Wallet-context simulation executed" },
+    { label: "Publish", icon: RadioTower, description: "Proof published to KeeperHub" },
+    { label: "Attest", icon: BadgeCheck, description: "Onchain attestation confirmed" },
+    { label: "Proof", icon: Sparkles, description: "Verifiable proof trail complete" },
   ];
 
   return (
-    <div className="grid gap-px bg-white/10 sm:grid-cols-5" aria-label="Proof pipeline">
+    <div className="grid grid-cols-1 sm:grid-cols-5 gap-px bg-white/10">
       {steps.map((step, index) => {
         const Icon = step.icon;
         return (
@@ -297,6 +311,7 @@ function ProofStrip() {
               </span>
             </div>
             <p className="mt-3 text-sm font-medium text-zinc-100">{step.label}</p>
+            <p className="mt-1 text-xs text-zinc-500">{step.description}</p>
           </div>
         );
       })}

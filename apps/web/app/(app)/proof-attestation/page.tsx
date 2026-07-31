@@ -11,9 +11,12 @@ import {
   Lock,
   RadioTower,
   ShieldCheck,
+  Search,
+  Filter,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { shortenHash } from "@/lib/utils";
 import { useWallet } from "@/components/wallet/context";
 import { useTreasurySession } from "@/components/treasury/session-context";
@@ -55,8 +58,28 @@ export default function ProofAttestationPage() {
   const [expandedTx, setExpandedTx] = useState<string | null>(null);
   const [state, setState] = useState<"loading" | "done" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
 
   const locked = mode === "analyze" || !connectedWallet || !isOwnerVerified;
+
+  const filteredAttestations = attestations.filter((attestation) => {
+    const matchesSearch =
+      searchQuery === "" ||
+      attestation.reportHash.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      attestation.txHash.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      attestation.treasury.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      attestation.status.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesFilter =
+      filterStatus === "all" ||
+      attestation.status.toLowerCase().includes(filterStatus.toLowerCase());
+
+    return matchesSearch && matchesFilter;
+  });
+
+  const recentAttestations = filteredAttestations.slice(0, 10);
+  const olderAttestations = filteredAttestations.slice(10);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,17 +135,51 @@ export default function ProofAttestationPage() {
               Attestation History
             </h1>
             <p className="mt-1 text-sm text-zinc-400">
-              Date, action, report hash, attestation hash, and status for every published attestation.
+              Onchain attestation records linked to treasury reports and executions.
             </p>
           </div>
         </div>
       </div>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-4">
-          <div><p className="text-sm font-medium text-cyan-100">Need to inspect one execution end-to-end?</p><p className="mt-1 text-xs text-zinc-400">The proof trail links the report, simulation, attestation, and onchain record.</p></div>
-          <Button asChild variant="secondary" size="sm"><a href="/proof-trail">Open Proof Trail</a></Button>
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-4">
+          <div>
+            <p className="text-sm font-medium text-cyan-100">Need to inspect one execution end-to-end?</p>
+            <p className="mt-1 text-xs text-zinc-400">The proof trail links the report, simulation, attestation, and onchain record.</p>
+          </div>
+          <Button asChild variant="secondary" size="sm">
+            <a href="/proof-trail">Open Proof Trail</a>
+          </Button>
         </div>
+
+        {!locked && state === "done" && (
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative flex-1 sm:max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+              <input
+                type="text"
+                placeholder="Search by hash, treasury, or status..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-10 w-full rounded-lg border border-white/10 bg-zinc-900 pl-9 pr-3 text-sm text-zinc-100 outline-none transition focus:border-cyan-400"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Filter className="h-4 w-4 text-zinc-500" />
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="h-10 rounded-lg border border-white/10 bg-zinc-900 px-3 text-sm text-zinc-300 outline-none focus:border-cyan-400"
+              >
+                <option value="all">All statuses</option>
+                <option value="attested">Attested</option>
+                <option value="pending">Pending</option>
+                <option value="failed">Failed</option>
+              </select>
+            </div>
+          </div>
+        )}
+
         {locked ? (
           <LockedPanel mode={mode} onConnect={wallet.connect} />
         ) : (
@@ -133,78 +190,188 @@ export default function ProofAttestationPage() {
               </div>
             ) : null}
 
-            <div className="overflow-hidden rounded-xl border border-white/10 bg-zinc-900/60 backdrop-blur-xl">
-              <table className="w-full min-w-[980px] text-left text-sm">
-                <thead className="border-b border-zinc-800 bg-zinc-900/70 text-xs uppercase text-zinc-500">
-                  <tr>
-                    <th className="w-10 px-3 py-3" />
-                    <th className="px-3 py-3">Date</th>
-                    <th className="px-3 py-3">Action</th>
-                    <th className="px-3 py-3">Report Hash</th>
-                    <th className="px-3 py-3">Attestation Hash</th>
-                    <th className="px-3 py-3">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800">
-                  {state === "loading" ? (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-16 text-center text-zinc-500">
-                        <Loader2 className="mx-auto mb-3 h-8 w-8 animate-spin" />
-                        Loading attestations...
-                      </td>
-                    </tr>
-                  ) : attestations.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-4 py-16 text-center text-zinc-500">
-                        <RadioTower className="mx-auto mb-3 h-8 w-8" />
-                        No attestations found yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    attestations.map((entry) => {
+            {state === "loading" ? (
+              <Card className="rounded-xl bg-zinc-900/70">
+                <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                  <Loader2 className="mb-3 h-8 w-8 animate-spin text-zinc-500" />
+                  <p className="text-sm text-zinc-500">Loading attestations...</p>
+                </CardContent>
+              </Card>
+            ) : filteredAttestations.length === 0 ? (
+              <Card className="rounded-xl border-dashed border-zinc-700">
+                <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="mb-3 rounded-xl border border-white/10 bg-zinc-950 p-2.5">
+                    <RadioTower className="h-5 w-5 text-zinc-400" />
+                  </div>
+                  <p className="text-base font-medium text-zinc-200">No attestations found</p>
+                  <p className="mt-2 max-w-md text-sm leading-6 text-zinc-500">
+                    {searchQuery || filterStatus !== "all"
+                      ? "No attestations match your current filters. Try adjusting your search."
+                      : "Execute a plan to generate the first attestation record."}
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-6">
+                <div className="overflow-hidden rounded-xl border border-white/10 bg-zinc-900/60 backdrop-blur-xl">
+                  <div className="border-b border-white/10 px-4 py-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                        Recent Attestations
+                      </p>
+                      <Badge variant="outline" className="normal-case">
+                        {recentAttestations.length} record{recentAttestations.length !== 1 ? "s" : ""}
+                      </Badge>
+                    </div>
+                  </div>
+                  <div className="divide-y divide-zinc-800">
+                    {recentAttestations.map((entry) => {
                       const expanded = expandedTx === entry.txHash;
                       return (
                         <Fragment key={entry.txHash}>
-                          <tr
-                            className="cursor-pointer bg-zinc-950 hover:bg-zinc-900/60"
+                          <div
+                            className="cursor-pointer bg-zinc-950 transition hover:bg-zinc-900/60"
                             onClick={() =>
                               setExpandedTx(expanded ? null : entry.txHash)
                             }
                           >
-                            <td className="px-3 py-4 text-zinc-500">
-                              {expanded ? (
-                                <ChevronDown className="h-4 w-4" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4" />
-                              )}
-                            </td>
-                            <td className="px-3 py-4 text-zinc-300">
-                              {new Date(entry.timestamp).toLocaleDateString()}
-                            </td>
-                            <td className="px-3 py-4 text-zinc-200">
-                              {entry.status === "Attested Onchain" ? "On-chain Attest" : entry.status}
-                            </td>
-                            <td className="px-3 py-4">
-                              <InlineCopy
-                                value={entry.reportHash}
-                                display={shortenHash(entry.reportHash)}
-                              />
-                            </td>
-                            <td className="px-3 py-4">
-                              <InlineCopy
-                                value={entry.txHash}
-                                display={shortenHash(entry.txHash)}
-                              />
-                            </td>
-                            <td className="px-3 py-4">
-                              <Badge variant="low" className="normal-case">
-                                ✓ Attested
-                              </Badge>
-                            </td>
-                          </tr>
+                            <div className="flex items-center gap-4 px-4 py-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Badge variant="low" className="normal-case">
+                                    ✓ Attested
+                                  </Badge>
+                                  <span className="text-sm font-medium text-zinc-200">
+                                    {entry.status === "Attested Onchain" ? "On-chain Attest" : entry.status}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+                                  <span>
+                                    {new Date(entry.timestamp).toLocaleDateString()}
+                                  </span>
+                                  <span className="font-mono">
+                                    Report: {shortenHash(entry.reportHash)}
+                                  </span>
+                                  <span className="font-mono">
+                                    Tx: {shortenHash(entry.txHash)}
+                                  </span>
+                                  <span>{entry.network}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  asChild
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <a
+                                    href={entry.transactionLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Etherscan
+                                  </a>
+                                </Button>
+                                {expanded ? (
+                                  <ChevronDown className="h-4 w-4 text-zinc-500" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-zinc-500" />
+                                )}
+                              </div>
+                            </div>
+                          </div>
                           {expanded ? (
-                            <tr>
-                              <td colSpan={6} className="bg-zinc-950 px-6 py-5">
+                            <div className="border-t border-zinc-800 bg-zinc-950 px-6 py-5">
+                              <div className="grid gap-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 md:grid-cols-2">
+                                <Detail label="Full report hash" value={entry.reportHash} />
+                                <Detail label="Attestation hash" value={entry.txHash} link={entry.transactionLink} />
+                                <Detail label="Treasury" value={entry.treasury} />
+                                <Detail label="Publisher" value={entry.publisher} />
+                                <Detail label="Block number" value={entry.blockNumber} />
+                                <Detail label="Network" value={entry.network} />
+                                <Detail label="Timestamp" value={new Date(entry.timestamp).toLocaleString()} />
+                                <Detail label="Status" value="✓ Attested Onchain" />
+                                <Detail label="Etherscan" value="View on Etherscan" link={entry.transactionLink} />
+                              </div>
+                              <div className="mt-3">
+                                <Button asChild variant="secondary" size="sm">
+                                  <a href={`/proof-trail?tx=${entry.txHash}&report=${entry.reportHash}`}>
+                                    View Proof Trail →
+                                  </a>
+                                </Button>
+                              </div>
+                            </div>
+                          ) : null}
+                        </Fragment>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {olderAttestations.length > 0 && (
+                  <details className="group">
+                    <summary className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-white/10 bg-zinc-900/60 px-4 py-3 text-sm font-medium text-zinc-300 transition hover:bg-zinc-900">
+                      <Filter className="h-4 w-4" />
+                      Older attestations ({olderAttestations.length})
+                      <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
+                    </summary>
+                    <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-zinc-900/60">
+                      <div className="divide-y divide-zinc-800">
+                        {olderAttestations.map((entry) => (
+                          <div
+                            key={entry.txHash}
+                            className="cursor-pointer bg-zinc-950 transition hover:bg-zinc-900/60"
+                            onClick={() =>
+                              setExpandedTx(expandedTx === entry.txHash ? null : entry.txHash)
+                            }
+                          >
+                            <div className="flex items-center gap-4 px-4 py-3">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <Badge variant="low" className="normal-case">
+                                    ✓ Attested
+                                  </Badge>
+                                  <span className="text-sm text-zinc-300">
+                                    {entry.status === "Attested Onchain" ? "On-chain Attest" : entry.status}
+                                  </span>
+                                </div>
+                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-zinc-500">
+                                  <span>
+                                    {new Date(entry.timestamp).toLocaleDateString()}
+                                  </span>
+                                  <span className="font-mono">
+                                    Report: {shortenHash(entry.reportHash)}
+                                  </span>
+                                  <span className="font-mono">
+                                    Tx: {shortenHash(entry.txHash)}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  asChild
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <a
+                                    href={entry.transactionLink}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                  >
+                                    Etherscan
+                                  </a>
+                                </Button>
+                                {expandedTx === entry.txHash ? (
+                                  <ChevronDown className="h-4 w-4 text-zinc-500" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-zinc-500" />
+                                )}
+                              </div>
+                            </div>
+                            {expandedTx === entry.txHash && (
+                              <div className="border-t border-zinc-800 bg-zinc-950 px-6 py-5">
                                 <div className="grid gap-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 md:grid-cols-2">
                                   <Detail label="Full report hash" value={entry.reportHash} />
                                   <Detail label="Attestation hash" value={entry.txHash} link={entry.transactionLink} />
@@ -223,16 +390,16 @@ export default function ProofAttestationPage() {
                                     </a>
                                   </Button>
                                 </div>
-                              </td>
-                            </tr>
-                          ) : null}
-                        </Fragment>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
           </>
         )}
       </main>
@@ -247,8 +414,8 @@ function LockedPanel({ mode, onConnect }: { mode: "analyze" | "manage"; onConnec
       : "Connect the wallet that owns this treasury to unlock proof and attestation workflows.";
 
   return (
-    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-6">
-      <div className="flex items-start gap-3">
+    <Card className="rounded-xl border-amber-500/30 bg-amber-500/10">
+      <CardContent className="flex items-start gap-3 p-6">
         <Lock className="mt-0.5 h-5 w-5 text-amber-300" />
         <div>
           <p className="font-medium text-amber-200">Manage mode required</p>
@@ -260,17 +427,8 @@ function LockedPanel({ mode, onConnect }: { mode: "analyze" | "manage"; onConnec
             Connect Wallet
           </Button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function InlineCopy({ value, display }: { value: string; display: string }) {
-  return (
-    <span className="inline-flex items-center gap-2 font-mono text-xs text-zinc-200">
-      {display}
-      <CopyButton value={value} label={`Copy ${display}`} />
-    </span>
+      </CardContent>
+    </Card>
   );
 }
 
