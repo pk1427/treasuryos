@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -24,9 +24,10 @@ import type {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { cn, shortenHash } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { TreasuryBriefing } from "@/components/treasury/treasury-briefing";
 import { TrustRail } from "@/components/treasury/trust-rail";
+import { HashValue, MetricCard, StatusPill, WorkflowStepper } from "@/components/ui/treasury-primitives";
 import { useWallet } from "@/components/wallet/context";
 import { useTreasurySession } from "@/components/treasury/session-context";
 
@@ -64,6 +65,7 @@ export function V1Dashboard() {
   const [reportState, setReportState] = useState<StepState>("idle");
   const [loadingCopy, setLoadingCopy] = useState(LOADING_STEPS[0]);
   const [error, setError] = useState<string | null>(null);
+  const [executableActions, setExecutableActions] = useState<Array<{ label: string; fromAsset: string; toAsset: string }>>([]);
 
   const report = reportResponse?.report;
   const reportHash = reportResponse?.reportHash;
@@ -88,11 +90,20 @@ export function V1Dashboard() {
       (a, b) => severityRank(b.severity) - severityRank(a.severity)
     )[0] ?? null;
   }, [riskV2]);
+  const criticalRiskActive = primaryRisk?.severity === "critical";
 
   const topPositions = useMemo(
     () => (report ? [...report.snapshot.positions].sort((a, b) => b.amountUsd - a.amountUsd).slice(0, 4) : []),
     [report]
   );
+
+  useEffect(() => {
+    if (!report?.address) return;
+    fetch("/api/executable-actions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ address: report.address }) })
+      .then((response) => response.ok ? response.json() : { actions: [] })
+      .then((data) => setExecutableActions(data.actions ?? []))
+      .catch(() => setExecutableActions([]));
+  }, [report?.address]);
 
   async function generateReport(inputAddress = address) {
     if (!inputAddress.trim()) {
@@ -166,7 +177,6 @@ export function V1Dashboard() {
             mode={mode}
             analyzedAddress={report?.address ?? address}
             connectedWallet={wallet.address}
-            ownerVerified={ownerVerified}
             network={network}
           />
         </div>
@@ -186,9 +196,7 @@ export function V1Dashboard() {
              />
            </label>
            <div className="flex flex-wrap items-center gap-2">
-             <Badge variant="outline" className="h-10 px-3 text-emerald-300">
-               Network: {network}
-             </Badge>
+             <StatusPill tone="info" className="h-10 px-3">Sepolia testnet</StatusPill>
              <Button onClick={() => generateReport()} disabled={reportState === "loading"}>
                {reportState === "loading" ? (
                  <Loader2 className="h-4 w-4 animate-spin" />
@@ -215,11 +223,12 @@ export function V1Dashboard() {
             report={report}
             reportHash={reportHash}
             primaryRisk={primaryRisk}
+            criticalRiskActive={criticalRiskActive}
             largestPosition={largestPosition}
             exposure={exposure}
             topPositions={topPositions}
-            ownerVerified={ownerVerified}
             executionUnlocked={executionUnlocked}
+            executableActions={executableActions}
             onAnalyze={() => setMode("analyze")}
             onManage={async () => {
               if (!wallet.address) await wallet.connect();
@@ -266,17 +275,15 @@ function SessionBlock({
   mode,
   analyzedAddress,
   connectedWallet,
-  ownerVerified,
   network,
 }: {
   mode: Mode;
   analyzedAddress: string;
   connectedWallet: string | null;
-  ownerVerified: boolean;
   network: string;
 }) {
   return (
-    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
         <p className="text-xs uppercase text-zinc-500">Mode</p>
         <p className="mt-1 text-sm font-medium text-zinc-200">
@@ -295,12 +302,6 @@ function SessionBlock({
       </div>
       {mode === "manage" ? (
         <>
-          <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
-            <p className="text-xs uppercase text-zinc-500">Owner</p>
-            <p className="mt-1 text-sm font-medium text-emerald-300">
-              {ownerVerified ? "Verified" : "Unverified"}
-            </p>
-          </div>
           <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
             <p className="text-xs uppercase text-zinc-500">Wallet</p>
             <p className="mt-1 font-mono text-sm text-zinc-200">
@@ -358,11 +359,12 @@ function CommandCenter({
   report,
   reportHash,
   primaryRisk,
+  criticalRiskActive,
   largestPosition,
   exposure,
   topPositions,
-  ownerVerified,
   executionUnlocked,
+  executableActions,
   onAnalyze,
   onManage,
 }: {
@@ -370,11 +372,12 @@ function CommandCenter({
   report?: RiskReport;
   reportHash?: string;
   primaryRisk: RiskFactor | StressRiskFactor | null;
+  criticalRiskActive: boolean;
   largestPosition: TreasuryPosition | null;
   exposure: number;
   topPositions: TreasuryPosition[];
-  ownerVerified: boolean;
   executionUnlocked: boolean;
+  executableActions: Array<{ label: string; fromAsset: string; toAsset: string }>;
   onAnalyze: () => void;
   onManage: () => void;
 }) {
@@ -389,10 +392,10 @@ function CommandCenter({
               </p>
               <div className="mt-3 flex items-center gap-3">
                 <Badge
-                  variant={report ? ratingVariant(report.score.rating) : "default"}
+                  variant={criticalRiskActive ? "critical" : report ? ratingVariant(report.score.rating) : "default"}
                   className="px-4 py-2 text-3xl font-bold"
                 >
-                  {report?.score.rating ?? "--"}
+                  {criticalRiskActive ? "CRITICAL" : report?.score.rating ?? "--"}
                 </Badge>
                 <div>
                   <p className="text-lg font-semibold text-zinc-100">
@@ -402,17 +405,11 @@ function CommandCenter({
                     {primaryRisk?.description ??
                       "Analyze any address read-only, then switch to Manage mode when you are ready to operate your own treasury."}
                   </p>
+                  {criticalRiskActive && report ? <p className="mt-2 text-xs text-amber-200">A critical driver overrides the portfolio grade. Base grade: {report.score.rating}; composite score remains a broad portfolio measure and does not average away urgent risks.</p> : null}
                 </div>
               </div>
             </div>
-            {reportHash ? (
-              <div className="rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
-                <p className="text-xs uppercase text-zinc-500">Report hash</p>
-                <p className="mt-1 font-mono text-xs text-zinc-300">
-                  {shortenHash(reportHash)}
-                </p>
-              </div>
-            ) : null}
+            <HashValue label="Report hash" value={reportHash} compact />
           </div>
 
           <div className="mt-5 rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-4">
@@ -421,11 +418,13 @@ function CommandCenter({
             </p>
             <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <p className="text-lg font-semibold text-white">
-                {report && largestPosition
-                  ? largestPosition.asset === "ETH" && exposure >= 0.7
-                    ? `Reduce ETH exposure from ${percent(exposure)} toward 70%`
-                    : `Monitor ${largestPosition.asset} exposure at ${percent(exposure)}`
-                  : "No action available until a treasury is scanned"}
+                {primaryRisk
+                  ? primaryRisk.severity === "critical"
+                    ? `Address critical risk: ${primaryRisk.title}`
+                    : `Review ${primaryRisk.title}`
+                  : report && largestPosition
+                    ? `Monitor ${largestPosition.asset} exposure at ${percent(exposure)}`
+                    : "No action available until a treasury is scanned"}
               </p>
               {mode === "analyze" ? (
                 <Button variant="secondary" size="sm" onClick={onManage}>
@@ -434,9 +433,7 @@ function CommandCenter({
                 </Button>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Badge variant={executionUnlocked ? "low" : "medium"} className="normal-case">
-                    {ownerVerified ? "Ownership verified" : "Execution locked"}
-                  </Badge>
+                  <Badge variant={executionUnlocked ? "low" : "medium"} className="normal-case">{executionUnlocked ? "Execution available" : "Execution locked"}</Badge>
                   <Button variant="ghost" size="sm" onClick={onAnalyze}>
                     Analyze Another Treasury
                   </Button>
@@ -449,19 +446,16 @@ function CommandCenter({
 
           <div className="mt-4 flex flex-wrap gap-2">
             <LinkCard href="/positions" icon={Table2} label="Positions" description="View full treasury inventory" />
-            <LinkCard href="/execution" icon={Activity} label="Execution Plan" description="Pre-trade ticket and execution" />
+            {executableActions.length > 0 ? <LinkCard href="/execution" icon={Activity} label={executableActions[0].label} description={`${executableActions[0].fromAsset} → ${executableActions[0].toAsset} route verified; review the quote before execution`} /> : <LinkCard href="/execution" icon={Activity} label="Execution Plan" description="No supported executable action detected" />}
             <LinkCard href="/proof-attestation" icon={RadioTower} label="Proof & Attestation" description="Attestation history and proof trail" />
           </div>
         </div>
 
         <div className="bg-zinc-950 p-5 sm:p-6">
-          <div className="overflow-hidden rounded-xl border border-white/10 bg-white/[0.03]">
-            <CommandMetric label="Total Value" value={report ? usd(report.snapshot.totalValueUsd) : "--"} />
-            <CommandMetric
-              label="Largest Exposure"
-              value={largestPosition ? `${largestPosition.asset} ${percent(exposure)}` : "--"}
-            />
-            <CommandMetric label="Composite Risk" value={report ? `${report.score.composite}/100` : "--"} />
+          <div className="grid gap-2">
+            <MetricCard label="Composite risk" value={report ? `${report.score.composite}/100` : "--"} detail="Overall risk score" tone={report?.score.composite && report.score.composite >= 70 ? "danger" : "info"} />
+            <MetricCard label="Total value" value={report ? usd(report.snapshot.totalValueUsd) : "--"} detail="Detected onchain assets" />
+            <MetricCard label="Largest exposure" value={largestPosition ? `${largestPosition.asset} ${percent(exposure)}` : "--"} detail="Allocation concentration" tone={exposure >= 0.7 ? "warning" : "neutral"} />
           </div>
         </div>
       </div>
@@ -469,12 +463,12 @@ function CommandCenter({
       {topPositions.length > 0 ? (
         <div className="border-t border-white/10 bg-zinc-950 p-4">
           <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            Top Positions
+            Position Snapshot
           </p>
           <div className="grid gap-2 md:grid-cols-4">
             {topPositions.map((position) => (
-              <div key={`${position.protocol}-${position.asset}-${position.amountUsd}`} className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
-                <p className="text-sm font-medium text-zinc-100">{position.asset}</p>
+              <div key={`${position.protocol}-${position.asset}-${position.amountUsd}`} className={cn("rounded-lg border p-3", position.protocol === "Uniswap" ? "border-violet-400/20 bg-violet-400/5" : "border-white/10 bg-white/[0.03]")}>
+                <div className="flex items-center justify-between gap-2"><p className="text-sm font-medium text-zinc-100">{position.asset}</p><span className={cn("rounded-full px-2 py-0.5 text-[10px] font-medium", position.protocol === "Uniswap" ? "bg-violet-400/10 text-violet-200" : "bg-zinc-800 text-zinc-300")}>{position.protocol === "Uniswap" ? "Deployed LP" : "Wallet-held"}</span></div>
                 <p className="mt-1 text-xs text-zinc-500">{position.protocol}</p>
                 <p className="mt-2 font-mono text-sm text-zinc-200">{usd(position.amountUsd)}</p>
               </div>
@@ -500,29 +494,7 @@ function LinkCard({ href, icon: Icon, label, description }: { href: string; icon
 
 function LifecycleStrip({ mode, executionUnlocked }: { mode: Mode; executionUnlocked: boolean }) {
   const steps = mode === "manage" ? MANAGE_LIFECYCLE : ANALYZE_LIFECYCLE;
-  return (
-    <div className="mt-5 flex flex-wrap gap-2">
-      {steps.map((step, index) => {
-        const active = mode === "manage" && step === "Execute" && executionUnlocked;
-        return (
-          <div
-            key={step}
-            className={cn(
-              "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium",
-              active
-                ? "border-cyan-400/40 bg-cyan-400/10 text-cyan-200"
-                : "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
-            )}
-          >
-            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-current text-[10px] text-zinc-950">
-              {index + 1}
-            </span>
-            {step}
-          </div>
-        );
-      })}
-    </div>
-  );
+  return <div className="mt-5"><p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-500">Product lifecycle</p><WorkflowStepper steps={steps} activeStep={executionUnlocked ? "Execute" : mode === "analyze" ? "Analyze" : "Discover"} completedThrough={mode === "analyze" ? 0 : executionUnlocked ? 3 : 1} /></div>;
 }
 
 function SectionCard({
@@ -618,15 +590,6 @@ function StressRanking({ report }: { report?: RiskReport }) {
   );
 }
 
-function CommandMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-b border-white/10 p-4 last:border-b-0">
-      <p className="text-xs uppercase text-zinc-500">{label}</p>
-      <p className="mt-2 break-words text-xl font-semibold text-zinc-100">{value}</p>
-    </div>
-  );
-}
-
 function ScoreMini({ label, value }: { label: string; value?: number }) {
   const score = value ?? 0;
   return (
@@ -651,21 +614,7 @@ function StagedScanBanner({ activeStep }: { activeStep: string }) {
         <Loader2 className="h-4 w-4 animate-spin" />
         {activeStep}
       </div>
-      <div className="mt-4 grid gap-2 md:grid-cols-5">
-        {LOADING_STEPS.map((step, index) => (
-          <div
-            key={step}
-            className={cn(
-              "rounded-lg border px-3 py-2 text-xs",
-              index <= activeIndex
-                ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-100"
-                : "border-white/10 bg-zinc-950/40 text-zinc-500"
-            )}
-          >
-            {step}
-          </div>
-        ))}
-      </div>
+      <div className="mt-4"><WorkflowStepper steps={LOADING_STEPS} activeStep={activeStep} completedThrough={activeIndex - 1} /></div>
     </div>
   );
 }

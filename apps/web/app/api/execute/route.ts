@@ -71,12 +71,14 @@ export async function POST(request: Request) {
         );
       }
 
+      const expectedTransaction = buildEthToUsdcSwapTransaction(validated.step, validated.walletAddress);
       const result = await persistExecutionHistory({
         planId,
         wallet: validated.walletAddress,
         txHash: body.txHash,
         protocol: "uniswap-v3",
         reportHash: validated.reportHash as `0x${string}`,
+        expectedTransaction,
       });
 
       return NextResponse.json({

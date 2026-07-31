@@ -13,8 +13,8 @@ export function TrustRail({ mode, ownerVerified }: TrustRailProps) {
     mode === "analyze"
       ? ["Read-only: no wallet required", "No execution capability in Analyze mode", "Analyze any public address safely"]
       : [
-          "Non-custodial: TreasuryOS never holds funds",
-          ownerVerified ? "Wallet ownership verified" : "Execution locked until ownership matches",
+          "Your wallet remains the only signer and transaction broadcaster",
+          ownerVerified ? "Verified ownership enables owner-only workflows" : "Execution stays locked until the connected wallet matches the treasury",
           "Simulation is read-only",
           "Intent signature is not execution",
         ];

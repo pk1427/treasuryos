@@ -6,7 +6,7 @@ export type PlanStepAction =
   | "collect-fees"
   | "rebalance";
 
-export type PlanStepProtocol = "wallet" | "uniswap" | "aave";
+export type PlanStepProtocol = "wallet" | "uniswap" | "uniswap-v3" | "aave";
 
 export type PlanStep = {
   order: number;
@@ -20,6 +20,14 @@ export type PlanStep = {
   amountUsd?: number;
   amountToken?: string;
   tokenId?: string;
+  quote?: {
+    adapterId: string;
+    amountIn: string;
+    amountOut: string;
+    amountOutMinimum: string;
+    slippageBps: number;
+    route: string;
+  };
 };
 
 export type ExpectedOutcome = {

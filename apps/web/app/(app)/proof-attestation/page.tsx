@@ -119,6 +119,10 @@ export default function ProofAttestationPage() {
       </div>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-4">
+          <div><p className="text-sm font-medium text-cyan-100">Need to inspect one execution end-to-end?</p><p className="mt-1 text-xs text-zinc-400">The proof trail links the report, simulation, attestation, and onchain record.</p></div>
+          <Button asChild variant="secondary" size="sm"><a href="/proof-trail">Open Proof Trail</a></Button>
+        </div>
         {locked ? (
           <LockedPanel mode={mode} onConnect={wallet.connect} />
         ) : (
@@ -129,7 +133,7 @@ export default function ProofAttestationPage() {
               </div>
             ) : null}
 
-            <div className="overflow-hidden rounded-lg border border-white/10 bg-zinc-900/60 backdrop-blur-xl">
+            <div className="overflow-hidden rounded-xl border border-white/10 bg-zinc-900/60 backdrop-blur-xl">
               <table className="w-full min-w-[980px] text-left text-sm">
                 <thead className="border-b border-zinc-800 bg-zinc-900/70 text-xs uppercase text-zinc-500">
                   <tr>

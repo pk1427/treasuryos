@@ -2,6 +2,7 @@ import { createPublicClient, http, parseEther, parseUnits } from "viem";
 import { sepolia } from "viem/chains";
 import type { ExecutionPlan, PlanStep } from "@/lib/ai/plan-types";
 import type { TreasurySnapshot } from "@treasuryos/shared";
+import { getExecutionAdapterForStep } from "@/lib/execution/registry";
 
 const KEEPERHUB_API_URL =
   process.env.KEEPERHUB_API_URL ?? "https://app.keeperhub.com";
@@ -82,11 +83,16 @@ export async function simulatePlanSteps(
       rawResponses[step.order] = result.rawKeeperHubResponse ?? {};
       rawViemResponses[step.order] = result.rawViemResponse ?? {};
       if (result.rawViemResponse) simulationMode = "viem-user-context";
-    } else if (step.protocol === "wallet" && step.action === "swap") {
-      const result = await simulateUniswapSwap(step, connectedWallet);
-      steps.push(result);
-      rawViemResponses[step.order] = result.rawViemResponse ?? {};
-      if (result.rawViemResponse) simulationMode = "viem-user-context";
+    } else if (getExecutionAdapterForStep(step)) {
+      const adapter = getExecutionAdapterForStep(step)!;
+      if (!connectedWallet) {
+        steps.push({ order: step.order, protocol: step.protocol, action: step.action, success: false, error: "MISSING_CONNECTED_WALLET", note: "Connect the treasury owner wallet to simulate this action." });
+        continue;
+      }
+      const result = await adapter.simulate(step, connectedWallet as `0x${string}`);
+      steps.push({ order: step.order, protocol: step.protocol, action: step.action, ...result });
+      rawViemResponses[step.order] = result;
+      simulationMode = "viem-user-context";
       if (!result.success) {
         warnings.push(
           `Step ${step.order}: Wallet swap simulation failed — ${result.error ?? "unknown error"}.`
@@ -117,6 +123,8 @@ export async function simulatePlanSteps(
   };
 }
 
+// Retained temporarily for comparison with legacy persisted simulation records.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function simulateUniswapSwap(
   step: PlanStep,
   connectedWallet?: string

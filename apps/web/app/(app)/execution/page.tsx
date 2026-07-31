@@ -18,6 +18,7 @@ import { shortenHash } from "@/lib/utils";
 import { useWallet } from "@/components/wallet/context";
 import { useTreasurySession } from "@/components/treasury/session-context";
 import type { ExecutionPlan, PlanStep } from "@/lib/ai/plan-types";
+import { StatusPill, WorkflowStepper } from "@/components/ui/treasury-primitives";
 
 type PlanStatus = "PLANNED" | "NOT_ACTIONABLE" | "APPROVED" | "SIGNED" | "REJECTED" | "STALE";
 
@@ -60,6 +61,14 @@ export default function ExecutionPage() {
       status: string;
     }>
   >([]);
+
+  useEffect(() => {
+    if (!wallet.address) return;
+    fetch(`/api/execute?wallet=${wallet.address}`)
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error("History unavailable")))
+      .then(({ history }) => setExecutionHistory(history.map((entry: { createdAt: string; txHash: string; status: string }) => ({ date: new Date(entry.createdAt).toLocaleString(), action: "Swap ETH → USDC", txHash: entry.txHash, explorer: `https://sepolia.etherscan.io/tx/${entry.txHash}`, status: entry.status }))))
+      .catch(() => undefined);
+  }, [wallet.address, executionResult]);
 
   const locked =
     mode === "analyze" || !connectedWallet || !ownerVerified;
@@ -129,7 +138,7 @@ export default function ExecutionPage() {
       setExecutionHistory((history) => [
         {
           date: new Date().toISOString(),
-          action: "Swap",
+          action: "Swap ETH → USDC",
           txHash: completed.txHash,
           explorer: completed.explorer,
           status: completed.status,
@@ -228,13 +237,14 @@ export default function ExecutionPage() {
               <ExecutionError error={error} onRetry={loadPlan} />
             ) : plan && plan.steps.length > 0 ? (
               <div className="space-y-6">
+                <section className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-4">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-cyan-200">Owner-controlled execution workflow</p>
+                  <WorkflowStepper steps={["Generate", "Approve", "Simulate", "Sign", "Execute"]} activeStep={planStatus === "SIGNED" ? "Execute" : planStatus === "APPROVED" ? simulation ? "Sign" : "Simulate" : "Approve"} completedThrough={planStatus === "SIGNED" ? 3 : planStatus === "APPROVED" ? simulation ? 2 : 1 : 0} />
+                  <p className="mt-3 text-xs text-zinc-400">Approval, simulation, and intent signing do not move funds. Only the final Execute action opens your wallet transaction prompt.</p>
+                </section>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="low" className="normal-case">
-                    Ownership verified ✓
-                  </Badge>
-                  <Badge variant="outline" className="normal-case">
-                    Wallet {shortenAddress(wallet.address ?? "")}
-                  </Badge>
+                  <StatusPill tone="success">Ownership verified</StatusPill>
+                  <StatusPill tone="neutral">Wallet {shortenAddress(wallet.address ?? "")}</StatusPill>
                 </div>
                 <ExecutionTicket
                   plan={plan}
@@ -360,9 +370,9 @@ export default function ExecutionPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-amber-300">No executable actions.</p>
+                  <p className="text-sm font-medium text-amber-200">No supported action is ready for this treasury.</p>
                   <p className="mt-1 text-xs text-zinc-400">
-                    TreasuryOS determined that no deterministic onchain action is available for this plan.
+                    The scan did not produce a deterministic Sepolia Uniswap V3 ETH ↔ USDC swap. Review the current holdings or regenerate after the treasury changes.
                   </p>
                   <Button onClick={loadPlan} className="mt-3" variant="outline" size="sm">
                     <RefreshCw className="h-4 w-4 mr-2" />
@@ -380,7 +390,7 @@ export default function ExecutionPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-zinc-400">
-                    Generate a deterministic execution plan based on your treasury risk analysis.
+                    Build a reviewable, non-custodial plan from the current risk report. Generating a plan does not sign or submit a transaction.
                   </p>
                   <Button onClick={loadPlan} className="mt-4" variant="secondary">
                     <Activity className="h-4 w-4 mr-2" />

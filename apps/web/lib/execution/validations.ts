@@ -50,7 +50,7 @@ export async function validateExecutionPreconditions(
 
   const step = steps[0];
   if (
-    step.protocol !== "wallet" ||
+    step.protocol !== "uniswap-v3" ||
     step.action !== "swap" ||
     step.fromAsset !== "ETH" ||
     step.toAsset !== "USDC"

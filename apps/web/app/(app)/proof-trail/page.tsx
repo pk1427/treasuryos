@@ -11,9 +11,10 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { cn, shortenHash } from "@/lib/utils";
+import { shortenHash } from "@/lib/utils";
 import { useWallet } from "@/components/wallet/context";
 import { useTreasurySession } from "@/components/treasury/session-context";
+import { WorkflowStepper } from "@/components/ui/treasury-primitives";
 
 function ProofTrailContent() {
   const searchParams = useSearchParams();
@@ -143,23 +144,9 @@ function LockedPanel({ mode, onConnect }: { mode: "analyze" | "manage"; onConnec
 }
 
 function ProofStrip({ steps }: { steps: Array<{ label: string; done: boolean }> }) {
-  return (
-    <div className="grid gap-2 sm:grid-cols-5">
-      {steps.map((step) => (
-        <div
-          key={step.label}
-          className={cn(
-            "rounded-lg border px-3 py-2 text-center text-xs font-medium",
-            step.done
-              ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
-              : "border-white/10 bg-white/[0.03] text-zinc-500"
-          )}
-        >
-          {step.label} {step.done ? "✓" : ""}
-        </div>
-      ))}
-    </div>
-  );
+  const completedThrough = steps.reduce((last, step, index) => step.done ? index : last, -1);
+  const activeStep = steps.find((step) => !step.done)?.label;
+  return <section className="rounded-xl border border-white/10 bg-zinc-900/60 p-4"><p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-500">Verifiable execution pipeline</p><WorkflowStepper steps={steps.map((step) => step.label)} activeStep={activeStep} completedThrough={completedThrough} /></section>;
 }
 
 function HashPanel({ label, value, link }: { label: string; value?: string; link?: string }) {

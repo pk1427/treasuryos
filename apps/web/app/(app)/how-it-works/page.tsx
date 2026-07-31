@@ -47,7 +47,7 @@ const analyzeFlow = [
 const manageFlow = [
   {
     title: "Verify owner wallet",
-    body: "Execution unlocks only when the connected wallet matches the scanned treasury address.",
+    body: "Execution unlocks only when the connected wallet matches the scanned treasury address. If it does not match, management surfaces stay locked and no transaction can be prepared.",
     icon: BadgeCheck,
   },
   {
@@ -105,14 +105,14 @@ export default function HowItWorksPage() {
               </p>
             </div>
 
-            <div className="rounded-xl border border-white/10 bg-zinc-900/70 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Current execution scope
+            <div className="rounded-xl border border-cyan-400/25 bg-cyan-400/5 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-cyan-200">
+                Current execution scope — Sepolia only
               </p>
               <div className="mt-4 grid gap-3">
                 <ScopeRow label="Supported" value="Uniswap V3 wallet swap" tone="success" />
-                <ScopeRow label="Action" value="ETH <-> USDC" tone="success" />
-                <ScopeRow label="Excluded" value="Aave, Base, batch, x402" tone="muted" />
+                <ScopeRow label="Pairs" value="ETH ↔ USDC only" tone="success" />
+                <ScopeRow label="Not enabled" value="Aave actions, Base, batch actions, x402" tone="muted" />
               </div>
             </div>
           </div>
@@ -143,7 +143,7 @@ export default function HowItWorksPage() {
           <ModePanel
             eyebrow="Manage mode"
             title="Operate only the treasury your wallet owns"
-            body="Use this when the connected wallet is the scanned wallet. Execution and proof workflows unlock only after ownership is verified."
+            body="Use this when the connected wallet is the scanned wallet. This is the operational walkthrough; the separate proof pipeline below records verifiable evidence after the workflow completes."
             icon={ShieldCheck}
             steps={manageFlow}
             highlighted
@@ -184,10 +184,10 @@ export default function HowItWorksPage() {
                 </div>
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                    Proof architecture
+                  Proof pipeline
                   </p>
                   <h2 className="text-lg font-semibold text-white">
-                    Every completed execution should leave a trail
+                    A distinct verification record after execution
                   </h2>
                 </div>
               </div>
@@ -241,6 +241,7 @@ function ModePanel({
       </div>
 
       <div className="mt-6 grid gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-300">Manage mode walkthrough</p>
         {steps.map((step, index) => (
           <FlowStep key={step.title} step={step} index={index} />
         ))}
@@ -284,7 +285,7 @@ function ProofStrip() {
   ];
 
   return (
-    <div className="grid gap-px bg-white/10 sm:grid-cols-5">
+    <div className="grid gap-px bg-white/10 sm:grid-cols-5" aria-label="Proof pipeline">
       {steps.map((step, index) => {
         const Icon = step.icon;
         return (

@@ -4,7 +4,8 @@ import { buildRiskReportV2 } from "@treasuryos/risk-engine";
 import { runStressScenarios } from "@treasuryos/simulator";
 import { getTokenPrice } from "@treasuryos/indexer";
 import type { ExecutionPlan, PlanStep } from "./plan-types";
-import type { AaveAccountSummary, TreasurySnapshot } from "@treasuryos/shared";
+import type { TreasurySnapshot } from "@treasuryos/shared";
+import { uniswapV3ExecutionAdapter } from "@/lib/execution/adapters/uniswap-v3";
 
 const STABLE_COINS = new Set(["USDC", "USDT", "DAI"]);
 const ETH_ASSETS = new Set(["ETH", "WETH"]);
@@ -35,72 +36,23 @@ export async function generateExecutionPlan(
   let order = 0;
 
   const walletPositions = snapshot.positions.filter((p) => p.protocol === "Wallet");
-  const aavePositions = snapshot.positions.filter((p) => p.protocol === "Aave");
-  const uniswapPositions = snapshot.positions.filter((p) => p.protocol === "Uniswap");
-
-  const accountSummary = aavePositions[0]?.metadata?.accountSummary as
-    | AaveAccountSummary
-    | undefined;
 
   const ethExposureUsd =
     walletPositions
       .filter((p) => ETH_ASSETS.has(p.asset))
       .reduce((sum, p) => sum + p.amountUsd, 0) +
-    aavePositions
-      .filter((p) => ETH_ASSETS.has(p.asset) && p.metadata?.positionType === "supplied")
-      .reduce((sum, p) => sum + p.amountUsd, 0);
+    0;
 
   const stableExposureUsd =
     walletPositions
       .filter((p) => STABLE_COINS.has(p.asset))
       .reduce((sum, p) => sum + p.amountUsd, 0) +
-    aavePositions
-      .filter((p) => STABLE_COINS.has(p.asset) && p.metadata?.positionType === "supplied")
-      .reduce((sum, p) => sum + p.amountUsd, 0);
+    0;
 
   const totalValue = snapshot.totalValueUsd;
 
   for (const rec of riskV2.recommendations) {
     const action = rec.action.toLowerCase();
-
-    if (
-      action.includes("repay") &&
-      accountSummary &&
-      accountSummary.healthFactor !== null &&
-      accountSummary.healthFactor < 1.5
-    ) {
-      const positionDebtUsd = Math.abs(
-        aavePositions
-          .filter((p) => p.metadata?.positionType === "borrowed")
-          .reduce((sum, p) => sum + p.amountUsd, 0)
-      );
-
-      const totalDebtUsd = accountSummary.totalDebtUsd > 0
-        ? accountSummary.totalDebtUsd
-        : positionDebtUsd;
-
-      if (totalDebtUsd > 0) {
-        const targetRepay = Math.min(totalDebtUsd, stableExposureUsd);
-        const repayAsset =
-          walletPositions
-            .filter((p) => STABLE_COINS.has(p.asset))
-            .sort((a, b) => b.amountUsd - a.amountUsd)[0]?.asset ?? "USDC";
-
-        if (targetRepay > 0) {
-          order += 1;
-          steps.push({
-            order,
-            protocol: "aave",
-            action: "repay",
-            asset: repayAsset,
-            amountUsd: targetRepay,
-            amountToken: `${targetRepay.toFixed(2)} ${repayAsset}`,
-            reason: rec.reason,
-            traceId: rec.reason.slice(0, 40),
-          });
-        }
-      }
-    }
 
     if (action.includes("reduce eth exposure") && ethExposureUsd > 0) {
       const ethRatio = ethExposureUsd / totalValue;
@@ -113,9 +65,9 @@ export async function generateExecutionPlan(
         const nativeAmount = ethPrice > 0 ? swapUsd / ethPrice : 0;
 
         order += 1;
-        steps.push({
+        const candidate: PlanStep = {
           order,
-          protocol: "wallet",
+          protocol: "uniswap-v3",
           action: "swap",
           fromAsset: "ETH",
           toAsset: "USDC",
@@ -123,7 +75,11 @@ export async function generateExecutionPlan(
           amountToken: `${nativeAmount.toFixed(6)} ETH`,
           reason: rec.reason,
           traceId: rec.reason.slice(0, 40),
-        });
+        };
+        if ((await uniswapV3ExecutionAdapter.discover(snapshot)).length > 0) {
+          candidate.quote = await uniswapV3ExecutionAdapter.quote(candidate);
+          steps.push(candidate);
+        }
       }
     }
 
@@ -138,9 +94,9 @@ export async function generateExecutionPlan(
         const nativeAmount = ethPrice > 0 ? neededStableUsd / ethPrice : 0;
 
         order += 1;
-        steps.push({
+        const candidate: PlanStep = {
           order,
-          protocol: "wallet",
+          protocol: "uniswap-v3",
           action: "swap",
           fromAsset: "ETH",
           toAsset: "USDC",
@@ -148,7 +104,11 @@ export async function generateExecutionPlan(
           amountToken: `${nativeAmount.toFixed(6)} ETH`,
           reason: rec.reason,
           traceId: rec.reason.slice(0, 40),
-        });
+        };
+        if ((await uniswapV3ExecutionAdapter.discover(snapshot)).length > 0) {
+          candidate.quote = await uniswapV3ExecutionAdapter.quote(candidate);
+          steps.push(candidate);
+        }
       }
     }
 
@@ -173,9 +133,9 @@ export async function generateExecutionPlan(
       const nativeAmount = ethPrice > 0 ? swapUsd / ethPrice : 0;
 
       order += 1;
-      steps.push({
+      const candidate: PlanStep = {
         order,
-        protocol: "wallet",
+        protocol: "uniswap-v3",
         action: "swap",
         fromAsset: "ETH",
         toAsset: "USDC",
@@ -183,28 +143,15 @@ export async function generateExecutionPlan(
         amountToken: `${nativeAmount.toFixed(6)} ETH`,
         reason: `ETH exposure is ${(ethRatio * 100).toFixed(0)}%, above the ${(TARGET_ETH_RATIO * 100).toFixed(0)}% target.`,
         traceId: "eth-concentration-wallet-swap",
-      });
+      };
+      if ((await uniswapV3ExecutionAdapter.discover(snapshot)).length > 0) {
+        candidate.quote = await uniswapV3ExecutionAdapter.quote(candidate);
+        steps.push(candidate);
+      }
     }
   }
 
   const dedupedSteps = deduplicateSteps(steps);
-
-  const uniswapFeesUsd = uniswapPositions.reduce(
-    (sum, p) => sum + ((p.metadata as { unclaimedFees?: { totalUsd?: number } })?.unclaimedFees?.totalUsd ?? 0),
-    0
-  );
-
-  if (uniswapFeesUsd > 10) {
-    order += 1;
-    dedupedSteps.push({
-      order,
-      protocol: "uniswap",
-      action: "collect-fees",
-      amountUsd: uniswapFeesUsd,
-      reason: "Collect unclaimed Uniswap fees to realize yield.",
-      traceId: "uniswap-unclaimed-fees",
-    });
-  }
 
   const balanceValidation = validatePlanBalances(snapshot, dedupedSteps);
   const finalSteps = balanceValidation.valid ? dedupedSteps : [];
@@ -216,7 +163,6 @@ export async function generateExecutionPlan(
 
   const ethExposureAfterUsd = calculatePostPlanExposure(ethExposureUsd, finalSteps, "fromAsset", "ETH");
   const stableRatioAfter = calculatePostPlanStableRatio(stableExposureUsd, totalValue, finalSteps, "toAsset", "USDC");
-  const projectedHF = computeProjectedHealthFactor(accountSummary, finalSteps);
 
   const plan: ExecutionPlan = {
     planId: `plan_${Date.now()}_${address.slice(2, 8)}`,
@@ -224,8 +170,8 @@ export async function generateExecutionPlan(
     basedOnReportHash: reportHash ?? computeSnapshotHash(snapshot),
     steps: finalSteps,
     expectedOutcome: {
-      healthFactorBefore: accountSummary?.healthFactor ?? null,
-      healthFactorAfter: projectedHF,
+      healthFactorBefore: null,
+      healthFactorAfter: null,
       ethExposureBefore: totalValue > 0 ? ethExposureUsd / totalValue : 0,
       ethExposureAfter: totalValue > 0 ? ethExposureAfterUsd / totalValue : 0,
       stablecoinRatioBefore: totalValue > 0 ? stableExposureUsd / totalValue : 0,
@@ -327,46 +273,6 @@ function validatePlanBalances(
   }
 
   return { valid: true };
-}
-
-function computeProjectedHealthFactor(
-  accountSummary: AaveAccountSummary | undefined,
-  steps: PlanStep[]
-): number | null {
-  if (!accountSummary || accountSummary.healthFactor === null) {
-    return null;
-  }
-
-  const hasAaveAction = steps.some(
-    (step) =>
-      step.protocol === "aave" &&
-      ["repay", "borrow", "supply", "withdraw"].includes(step.action)
-  );
-
-  if (!hasAaveAction) {
-    return accountSummary.healthFactor;
-  }
-
-  const repayStep = steps.find(
-    (step) => step.protocol === "aave" && step.action === "repay"
-  );
-
-  if (repayStep && accountSummary.totalDebtUsd > 0) {
-    const repayAmount = repayStep.amountUsd ?? 0;
-    const remainingDebt = Math.max(0, accountSummary.totalDebtUsd - repayAmount);
-
-    if (remainingDebt <= 0.01) {
-      return null;
-    }
-
-    const newDebt = Math.max(0.01, remainingDebt);
-    return Math.min(
-      accountSummary.healthFactor * (accountSummary.totalDebtUsd / newDebt),
-      2.0
-    );
-  }
-
-  return Math.min(accountSummary.healthFactor + 0.5, 2.0);
 }
 
 function calculatePostPlanExposure(

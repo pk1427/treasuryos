@@ -7,9 +7,9 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useWallet } from "@/components/wallet/context";
 import { useTreasurySession } from "@/components/treasury/session-context";
+import { MetricCard, StatusPill } from "@/components/ui/treasury-primitives";
 
 type TreasuryPosition = {
   protocol: string;
@@ -66,9 +66,9 @@ export default function PositionsPage() {
         ) : (
           <div className="space-y-6">
             <div className="grid gap-4 sm:grid-cols-3">
-              <MetricCard label="Total Value" value={usd(totalValue)} />
-              <MetricCard label="Positions" value={String(positions.length)} />
-              <MetricCard label="Network" value={process.env.NEXT_PUBLIC_CHAIN ?? "sepolia"} />
+              <MetricCard label="Total Value" value={usd(totalValue)} detail="Detected onchain assets" />
+              <MetricCard label="Positions" value={String(positions.length)} detail="Wallet and protocol inventory" />
+              <MetricCard label="Network" value={process.env.NEXT_PUBLIC_CHAIN ?? "sepolia"} detail="Configured test network" tone="info" />
             </div>
             <PositionsTable positions={positions} totalValue={totalValue} />
           </div>
@@ -111,9 +111,12 @@ function PositionsTable({
                 <td className="px-4 py-3 font-medium text-zinc-100">{position.asset}</td>
                 <td className="px-4 py-3 text-zinc-300">{position.protocol}</td>
                 <td className="px-4 py-3 text-zinc-400">{positionTypeLabel(position.type)}</td>
-                <td className="px-4 py-3 text-right font-mono text-zinc-100">{usd(position.amountUsd)}</td>
-                <td className="px-4 py-3 text-right font-mono text-zinc-300">
-                  {totalValue > 0 ? percent(position.amountUsd / totalValue) : "--"}
+                <td className="px-4 py-3 text-right font-mono tabular-nums text-zinc-100">{usd(position.amountUsd)}</td>
+                <td className="px-4 py-3 text-right">
+                  <div className="ml-auto w-28">
+                    <p className="font-mono text-xs tabular-nums text-zinc-300">{totalValue > 0 ? percent(position.amountUsd / totalValue) : "--"}</p>
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-cyan-400" style={{ width: `${Math.min((position.amountUsd / Math.max(totalValue, 1)) * 100, 100)}%` }} /></div>
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   <PositionStatus position={position} totalValue={totalValue} />
@@ -129,16 +132,16 @@ function PositionsTable({
 function PositionStatus({ position, totalValue }: { position: TreasuryPosition; totalValue: number }) {
   if (position.protocol === "Uniswap" && position.metadata?.inRange != null) {
     return (
-      <Badge variant={position.metadata.inRange ? "low" : "medium"} className="normal-case">
+      <StatusPill tone={position.metadata.inRange ? "success" : "danger"}>
         {position.metadata.inRange ? "In range" : "Out of range"}
-      </Badge>
+      </StatusPill>
     );
   }
   const allocation = totalValue > 0 ? position.amountUsd / totalValue : 0;
   return (
-    <Badge variant={allocation >= 0.7 ? "high" : "default"} className="normal-case">
+    <StatusPill tone={allocation >= 0.7 ? "warning" : "neutral"}>
       {allocation >= 0.7 ? "Concentrated" : "Monitor"}
-    </Badge>
+    </StatusPill>
   );
 }
 
@@ -169,8 +172,8 @@ function LockedPanel({
             {mismatch
               ? `Connected wallet ${shortenAddress(connectedWallet!)} does not own ${shortenAddress(analyzedAddress)}.`
               : mode === "analyze"
-                ? "Connect the wallet that owns this treasury to unlock execution and proof workflows."
-                : "Connect a wallet to unlock execution planning."}
+                ? "Analyze mode is intentionally read-only. Connect the treasury owner wallet to unlock management, execution, and private proof workflows."
+                : "Connect the wallet that owns this treasury to unlock execution planning; TreasuryOS never takes custody of funds."}
           </p>
           {!connectedWallet ? (
             <Button className="mt-3" variant="secondary" size="sm" onClick={onConnect}>
@@ -189,15 +192,6 @@ function EmptyState({ icon: Icon, text }: { icon: LucideIcon; text: string }) {
     <div className="flex min-h-36 flex-col items-center justify-center gap-3 rounded-lg border border-dashed border-zinc-800 px-4 text-center text-sm text-zinc-500">
       <Icon className="h-6 w-6" />
       {text}
-    </div>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-white/10 bg-zinc-900/70 p-4">
-      <p className="text-xs uppercase text-zinc-500">{label}</p>
-      <p className="mt-2 text-xl font-semibold text-zinc-100">{value}</p>
     </div>
   );
 }

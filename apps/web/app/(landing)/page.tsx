@@ -32,43 +32,46 @@ export default function LandingPage() {
       <section className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-7xl flex-col justify-center px-4 py-12 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-3xl text-center">
           <Badge variant="outline" className="mb-5 border-cyan-400/30 text-cyan-300">
-            Sepolia • non-custodial • verifiable
+            Sepolia testnet · owner-controlled execution · verifiable onchain proof
           </Badge>
           <h1 className="text-4xl font-semibold tracking-tight text-white sm:text-6xl">
-            Treasury Intelligence & Execution Platform
+            See treasury risk clearly. Execute only when you choose.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-zinc-400">
-            Analyze any public treasury read-only, or connect the owner wallet to
-            plan, simulate, execute, and attest treasury actions.
+            Analyze any public treasury without connecting. When you own the wallet,
+            review each step, simulate it, then sign and submit it yourself.
           </p>
         </div>
 
         <div className="mt-10 grid gap-4 lg:grid-cols-2">
           <ModeCard
             icon={ScanLine}
-            title="Analyze Any Treasury"
-            description="Paste any Ethereum address to inspect treasury health without connecting a wallet."
+            title="Analyze any treasury"
+            description="Read-only intelligence for any public address. No wallet connection and no transaction capability."
             items={analyzeItems}
-            cta="Analyze a Treasury"
+            cta="Start read-only analysis"
             href="/dashboard"
-            note="No wallet required"
+            note="No wallet required · no funds can move"
           />
           <ModeCard
             icon={ShieldCheck}
-            title="Manage My Treasury"
-            description="Connect your wallet to unlock owner-only execution, proof, and audit workflows."
+            title="Manage my treasury"
+            description="Connect the owner wallet to create, simulate, sign, and explicitly submit supported actions."
             items={manageItems}
-            cta="Connect Wallet"
+            cta="Connect owner wallet"
             href="/dashboard"
-            note="You approve every transaction"
+            note="Every signature and submission stays in your wallet"
           />
         </div>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-3">
-          <TrustMetric icon={LockKeyhole} label="Custody model" value="Non-custodial" />
-          <TrustMetric icon={RadioTower} label="Proof layer" value="KeeperHub" />
-          <TrustMetric icon={FileCheck2} label="Audit artifact" value="Onchain attestation" />
+        <section className="mt-8 rounded-2xl border border-white/10 bg-zinc-900/70 p-4 sm:p-5">
+          <p className="mb-4 text-xs font-semibold uppercase tracking-wide text-zinc-500">Trust architecture</p>
+        <div className="grid gap-3 md:grid-cols-3">
+          <TrustMetric icon={LockKeyhole} label="Custody model" value="TreasuryOS never holds assets" />
+          <TrustMetric icon={RadioTower} label="Proof layer" value="KeeperHub records evidence" />
+          <TrustMetric icon={FileCheck2} label="Audit artifact" value="Inspectable onchain attestation" />
         </div>
+        </section>
       </section>
     </main>
   );
