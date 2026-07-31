@@ -4,6 +4,13 @@
 
 ### AI Treasury Intelligence with Owner-Controlled Execution
 
+![Next.js](https://img.shields.io/badge/Next.js-15-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![Ethereum](https://img.shields.io/badge/Network-Sepolia-627EEA)
+![Uniswap](https://img.shields.io/badge/Protocol-Uniswap_V3-FF007A)
+![License](https://img.shields.io/badge/License-MIT-green)
+![Stage](https://img.shields.io/badge/Stage-1_Complete-success)
+
 Analyze treasury risk, generate deterministic execution plans, execute supported onchain actions, and publish verifiable proof.
 
 [Live Demo](https://treasuryos-web.vercel.app) • [Architecture](#architecture) • [Features](#features) • [Quick Start](#quick-start)
@@ -31,6 +38,24 @@ Scan
 Unlike autonomous AI agents, TreasuryOS is **non-custodial**.
 
 Every execution requires explicit wallet approval from the treasury owner.
+
+---
+
+# Why TreasuryOS?
+
+Most treasury dashboards stop at reporting.
+
+TreasuryOS extends treasury intelligence into execution by combining portfolio analysis, deterministic execution planning, owner-controlled transactions, and verifiable onchain proof within a single workflow.
+
+Instead of switching between multiple tools, treasury operators can:
+
+- Discover treasury positions
+- Understand portfolio risk
+- Review AI-assisted recommendations
+- Execute supported onchain actions
+- Produce verifiable proof of execution
+
+—all from one platform.
 
 ---
 
