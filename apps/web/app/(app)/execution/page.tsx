@@ -115,35 +115,27 @@ export default function ExecutionPage() {
     setError(null);
 
     try {
-      const prepared = await fetch("/api/execute", {
+      const response = await fetch(`/api/execution-plan/${planId}/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phase: "prepare", planId, walletAddress: wallet.address }),
-      }).then((r) => r.json());
+        body: JSON.stringify({ walletAddress: wallet.address }),
+      });
 
-      if (!prepared.success) throw new Error("Execution preparation failed");
-
-      const txHash = await wallet.sendTransaction(prepared.transaction);
-      if (!txHash) throw new Error("Wallet did not return a transaction hash");
-
-      const completed = await fetch("/api/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phase: "complete", planId, walletAddress: wallet.address, txHash }),
-      }).then((r) => r.json()) as { txHash: string; explorer: string; status: string };
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Execution failed");
 
       setExecutionResult({
-        txHash: completed.txHash,
-        explorer: completed.explorer,
-        status: completed.status,
+        txHash: data.txHash,
+        explorer: data.explorerUrl,
+        status: data.status,
       });
       setExecutionHistory((history) => [
         {
           date: new Date().toISOString(),
           action: "Swap ETH → USDC",
-          txHash: completed.txHash,
-          explorer: completed.explorer,
-          status: completed.status,
+          txHash: data.txHash,
+          explorer: data.explorerUrl,
+          status: data.status,
         },
         ...history,
       ]);

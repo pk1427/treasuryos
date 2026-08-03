@@ -61,6 +61,11 @@ export interface ActionPlan {
   from: string;
   to: string;
   chainId: number;
+  contractAddress?: string;
+  functionName?: string;
+  functionArgs?: string;
+  abi?: string;
+  value?: string;
 }
 
 export interface SimulationResult {
@@ -68,6 +73,8 @@ export interface SimulationResult {
   gasEstimate: bigint;
   gasCostUsd: number;
   message: string;
+  wouldRevert?: boolean;
+  revertReason?: string;
 }
 
 export interface ExecutionResult {

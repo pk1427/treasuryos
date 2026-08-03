@@ -1,8 +1,9 @@
 import type { PlanStep } from "@/lib/ai/plan-types";
 import { uniswapV3ExecutionAdapter } from "./adapters/uniswap-v3";
+import { keeperhubExecutionAdapter } from "./adapters/keeperhub";
 import type { ExecutionAdapter } from "./types";
 
-const adapters: ExecutionAdapter[] = [uniswapV3ExecutionAdapter];
+const adapters: ExecutionAdapter[] = [uniswapV3ExecutionAdapter, keeperhubExecutionAdapter];
 
 export function getExecutionAdapter(id: string) {
   return adapters.find((adapter) => adapter.id === id) ?? null;
