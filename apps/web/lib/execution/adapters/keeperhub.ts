@@ -25,7 +25,7 @@ function inputAmount(step: PlanStep) {
   return parseEther(amount);
 }
 
-function planStepToActionPlan(step: PlanStep, walletAddress: string): ActionPlan {
+export function planStepToActionPlan(step: PlanStep, walletAddress: string): ActionPlan {
   const amount = step.amountToken?.match(/^([0-9]+(?:\.[0-9]+)?)/)?.[1] ?? "0";
   const amountIn = parseEther(amount);
   return {

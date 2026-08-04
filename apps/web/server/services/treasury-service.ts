@@ -309,6 +309,18 @@ export class TreasuryService {
         status: result.status,
         gasUsed: result.gasUsed?.toString(),
         timestamp: new Date(),
+        executionMode: result.executionMode,
+        keeperhubMetadata: result.executionMode === "keeperhub" ? {
+          executionId: result.executionId,
+          transactionHash: result.txHash,
+          explorerUrl: result.explorerUrl,
+          chainId: result.chainId,
+          gasUsed: result.gasUsed?.toString(),
+          sponsored: result.sponsored,
+          finalStatus: result.status,
+          executionMode: result.executionMode,
+          executedAt: new Date().toISOString(),
+        } : undefined,
         decision: {
           type: decision.type,
           explanation: decision.explanation,
@@ -329,16 +341,33 @@ export class TreasuryService {
     const simulation = await simulate(actionPlan);
 
     const execRecord = await executionRepo.create(decisionId, {
-      simulationResult: JSON.stringify(simulation),
+      simulationResult: JSON.stringify({
+        ...simulation,
+        gasEstimate: simulation.gasEstimate.toString(),
+      }),
     });
 
     const result = await execute(actionPlan);
+
+    const keeperhubMetadata = result.executionMode === "keeperhub" ? {
+      executionId: result.executionId,
+      transactionHash: result.txHash,
+      explorerUrl: result.explorerUrl,
+      chainId: result.chainId,
+      gasUsed: result.gasUsed?.toString(),
+      sponsored: result.sponsored,
+      finalStatus: result.status,
+      executionMode: result.executionMode,
+      executedAt: new Date().toISOString(),
+    } : undefined;
 
     await executionRepo.update(execRecord.id, {
       txHash: result.txHash,
       status: result.status,
       gasUsed: result.gasUsed?.toString(),
       gasEstimate: simulation.gasEstimate.toString(),
+      executionMode: result.executionMode,
+      keeperhubMetadata,
     });
 
     await decisionRepo.updateStatus(decisionId, "executed");

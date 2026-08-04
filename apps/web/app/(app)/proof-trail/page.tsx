@@ -7,9 +7,10 @@ import {
   FileJson,
   Lock,
   Loader2,
-  ShieldCheck,
   RadioTower,
   ArrowRight,
+  Send,
+  ShieldCheck,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,7 @@ function ProofTrailContent() {
   const searchParams = useSearchParams();
   const wallet = useWallet();
   const session = useTreasurySession();
-  const { mode, connectedWallet, isOwnerVerified, reportResponse } = session;
+  const { mode, connectedWallet, isOwnerVerified, isKeeperHubManaged, reportResponse } = session;
 
   const txParam = searchParams.get("tx") ?? "";
   const reportParam = searchParams.get("report") ?? "";
@@ -48,7 +49,7 @@ function ProofTrailContent() {
     ? `https://sepolia.etherscan.io/tx/${txParam}`
     : attestation?.transactionLink;
 
-  const locked = mode === "analyze" || !connectedWallet || !isOwnerVerified;
+  const locked = mode === "analyze" || (!isKeeperHubManaged && (!connectedWallet || !isOwnerVerified));
 
   const [historicalAttestation, setHistoricalAttestation] = useState<IndexedAttestation | null>(null);
   const [historicalLoading, setHistoricalLoading] = useState(false);
@@ -80,6 +81,13 @@ function ProofTrailContent() {
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [hasCompletedAttestation, reportHash, session.analyzedAddress]);
 
+  const executionDone = Boolean(session.executionResult?.txHash) || Boolean(effectiveAttestationTxHash);
+  const executionState: StepState = executionDone
+    ? "done"
+    : session.executionResult?.status === "failed"
+      ? "error"
+      : "pending";
+
   const steps = [
     {
       label: "Report",
@@ -88,12 +96,17 @@ function ProofTrailContent() {
     },
     {
       label: "Simulate",
-      done: simulateState === "done" || Boolean(effectiveAttestationTxHash),
+      done: simulateState === "done" || executionDone,
       state: simulateState === "done"
         ? "done"
-        : Boolean(effectiveAttestationTxHash)
+        : executionDone
           ? "done"
           : simulateState,
+    },
+    {
+      label: "Execute",
+      done: executionDone,
+      state: executionState,
     },
     {
       label: "Publish",
@@ -145,7 +158,7 @@ function ProofTrailContent() {
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {locked ? (
-          <LockedPanel mode={mode} onConnect={wallet.connect} />
+          <LockedPanel mode={mode} onConnect={wallet.connect} isKeeperHubManaged={isKeeperHubManaged} />
         ) : !reportHash && !effectiveAttestationTxHash ? (
           <Card className="rounded-xl border-dashed border-zinc-700">
             <CardContent className="flex flex-col items-center justify-center py-16 text-center">
@@ -203,9 +216,15 @@ function ProofTrailContent() {
               />
               <MetricCard
                 label="Simulation"
-                value={simulateState === "done" || Boolean(effectiveAttestationTxHash) ? "Passed" : simulateState === "error" ? "Failed" : "Pending"}
-                detail={simulateState === "done" || Boolean(effectiveAttestationTxHash) ? "Wallet context OK" : "Waiting"}
-                tone={simulateState === "done" || Boolean(effectiveAttestationTxHash) ? "success" : simulateState === "error" ? "danger" : "neutral"}
+                value={simulateState === "done" || executionDone ? "Passed" : simulateState === "error" ? "Failed" : "Pending"}
+                detail={simulateState === "done" || executionDone ? "Wallet context OK" : "Waiting"}
+                tone={simulateState === "done" || executionDone ? "success" : simulateState === "error" ? "danger" : "neutral"}
+              />
+              <MetricCard
+                label="Execution"
+                value={session.executionResult?.txHash ? (session.executionResult.status === "failed" ? "Failed" : "Confirmed") : "Pending"}
+                detail={session.executionResult?.executionMode === "keeperhub" ? "KeeperHub" : session.executionResult?.txHash ? "Direct" : "Awaiting execution"}
+                tone={session.executionResult?.txHash ? (session.executionResult.status === "failed" ? "danger" : "success") : "neutral"}
               />
               <MetricCard
                 label="Publish"
@@ -300,6 +319,38 @@ function ProofTrailContent() {
               <Card className="rounded-xl bg-zinc-900/70">
                 <CardHeader className="pb-4">
                   <CardTitle className="flex items-center gap-2 text-base">
+                    <Send className="h-5 w-5 text-emerald-300" />
+                    Execution
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-start gap-3">
+                    <div className="flex-1">
+                      <p className="text-sm text-zinc-300">
+                        {session.executionResult?.txHash
+                          ? `Transaction ${shortenHash(session.executionResult.txHash)} ${session.executionResult.executionMode === "keeperhub" ? "executed via KeeperHub" : "executed directly"}.`
+                          : "No execution recorded for this session."}
+                      </p>
+                      {session.executionResult?.keeperhub ? (
+                        <div className="mt-2 space-y-1">
+                          <p className="text-xs text-zinc-400">Execution ID: {shortenHash(session.executionResult.keeperhub.executionId)}</p>
+                          <p className="text-xs text-zinc-400">Chain ID: {session.executionResult.keeperhub.chainId}</p>
+                          <p className="text-xs text-zinc-400">Gas Used: {Number(session.executionResult.keeperhub.gasUsed).toLocaleString()}</p>
+                          <p className="text-xs text-zinc-400">Sponsored: {session.executionResult.keeperhub.sponsored ? "Yes" : "No"}</p>
+                        </div>
+                      ) : null}
+                    </div>
+                    {session.executionResult?.txHash && (
+                      <Badge variant={session.executionResult.status === "failed" ? "critical" : "low"} className="normal-case">
+                        {session.executionResult.status}
+                      </Badge>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="rounded-xl bg-zinc-900/70">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-2 text-base">
                     <RadioTower className="h-5 w-5 text-violet-300" />
                     KeeperHub Publish
                   </CardTitle>
@@ -372,11 +423,13 @@ export default function ProofTrailPage() {
   );
 }
 
-function LockedPanel({ mode, onConnect }: { mode: "analyze" | "manage"; onConnect: () => void }) {
+function LockedPanel({ mode, onConnect, isKeeperHubManaged }: { mode: "analyze" | "manage"; onConnect: () => void; isKeeperHubManaged: boolean }) {
   const copy =
     mode === "analyze"
       ? "The proof trail is visible as a locked workflow in Analyze mode. Switch to Manage with the owner wallet to publish or verify private execution proofs."
-      : "Connect the wallet that owns this treasury to view the proof trail.";
+      : isKeeperHubManaged
+        ? "This treasury is managed by your authenticated KeeperHub organization. Execution and proof workflows are available without a connected wallet."
+        : "Connect the wallet that owns this treasury to view the proof trail.";
 
   return (
     <Card className="rounded-xl border-amber-500/30 bg-amber-500/10">
@@ -387,10 +440,12 @@ function LockedPanel({ mode, onConnect }: { mode: "analyze" | "manage"; onConnec
           <p className="mt-1 text-sm text-zinc-400">
             {copy}
           </p>
-          <Button className="mt-3" variant="secondary" size="sm" onClick={onConnect}>
-            <ShieldCheck className="h-4 w-4" />
-            Connect Wallet
-          </Button>
+          {!isKeeperHubManaged ? (
+            <Button className="mt-3" variant="secondary" size="sm" onClick={onConnect}>
+              <ShieldCheck className="h-4 w-4" />
+              Connect Wallet
+            </Button>
+          ) : null}
         </div>
       </CardContent>
     </Card>

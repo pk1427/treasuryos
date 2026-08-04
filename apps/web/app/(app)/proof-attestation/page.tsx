@@ -52,7 +52,7 @@ type AttestationsResponse = {
 export default function ProofAttestationPage() {
   const wallet = useWallet();
   const session = useTreasurySession();
-  const { mode, connectedWallet, isOwnerVerified } = session;
+  const { mode, connectedWallet, isOwnerVerified, isKeeperHubManaged } = session;
 
   const [attestations, setAttestations] = useState<IndexedAttestation[]>([]);
   const [expandedTx, setExpandedTx] = useState<string | null>(null);
@@ -61,7 +61,7 @@ export default function ProofAttestationPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
 
-  const locked = mode === "analyze" || !connectedWallet || !isOwnerVerified;
+  const locked = mode === "analyze" || (!isKeeperHubManaged && (!connectedWallet || !isOwnerVerified));
 
   const filteredAttestations = attestations.filter((attestation) => {
     const matchesSearch =
@@ -181,7 +181,7 @@ export default function ProofAttestationPage() {
         )}
 
         {locked ? (
-          <LockedPanel mode={mode} onConnect={wallet.connect} />
+          <LockedPanel mode={mode} onConnect={wallet.connect} isKeeperHubManaged={isKeeperHubManaged} />
         ) : (
           <>
             {error ? (
@@ -407,11 +407,13 @@ export default function ProofAttestationPage() {
   );
 }
 
-function LockedPanel({ mode, onConnect }: { mode: "analyze" | "manage"; onConnect: () => void }) {
+function LockedPanel({ mode, onConnect, isKeeperHubManaged }: { mode: "analyze" | "manage"; onConnect: () => void; isKeeperHubManaged: boolean }) {
   const copy =
     mode === "analyze"
       ? "Proof and attestation remain visible here, but publishing and private proof workflows require Manage mode."
-      : "Connect the wallet that owns this treasury to unlock proof and attestation workflows.";
+      : isKeeperHubManaged
+        ? "This treasury is managed by your authenticated KeeperHub organization. Proof and attestation workflows are available without a connected wallet."
+        : "Connect the wallet that owns this treasury to unlock proof and attestation workflows.";
 
   return (
     <Card className="rounded-xl border-amber-500/30 bg-amber-500/10">
@@ -422,10 +424,12 @@ function LockedPanel({ mode, onConnect }: { mode: "analyze" | "manage"; onConnec
           <p className="mt-1 text-sm text-zinc-400">
             {copy}
           </p>
-          <Button className="mt-3" variant="secondary" size="sm" onClick={onConnect}>
-            <ShieldCheck className="h-4 w-4" />
-            Connect Wallet
-          </Button>
+          {!isKeeperHubManaged ? (
+            <Button className="mt-3" variant="secondary" size="sm" onClick={onConnect}>
+              <ShieldCheck className="h-4 w-4" />
+              Connect Wallet
+            </Button>
+          ) : null}
         </div>
       </CardContent>
     </Card>

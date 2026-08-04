@@ -63,6 +63,7 @@ export function V1Dashboard() {
     setAttestation,
     setSimulateState,
     setPublishState,
+    isKeeperHubManaged,
   } = session;
   const [reportState, setReportState] = useState<StepState>("idle");
   const [loadingCopy, setLoadingCopy] = useState(LOADING_STEPS[0]);
@@ -77,8 +78,9 @@ export function V1Dashboard() {
   const reportHash = reportResponse?.reportHash;
   const network = process.env.NEXT_PUBLIC_CHAIN ?? "sepolia";
   const ownerVerified =
-    Boolean(wallet.address && report?.address) &&
-    wallet.address!.toLowerCase() === report!.address.toLowerCase();
+    isKeeperHubManaged ||
+    (Boolean(wallet.address && report?.address) &&
+      wallet.address!.toLowerCase() === report!.address.toLowerCase());
   const executionUnlocked = mode === "manage" && ownerVerified;
 
   const largestPosition = useMemo(() => {
@@ -261,11 +263,16 @@ export function V1Dashboard() {
                 variant={mode === "manage" ? "secondary" : "ghost"}
                 size="sm"
                 onClick={async () => {
-                  if (!wallet.address) await wallet.connect();
+                  if (!isKeeperHubManaged && !wallet.address) await wallet.connect();
+                  if (mode === "analyze") setMode("manage");
                 }}
               >
                 <ShieldCheck className="h-4 w-4" />
-                {ownerVerified ? "Manage · owner verified" : "Manage"}
+                {isKeeperHubManaged
+                  ? "KeeperHub · managed"
+                  : ownerVerified
+                    ? "Manage · owner verified"
+                    : "Manage"}
               </Button>
             </div>
           </div>
@@ -476,6 +483,7 @@ function TreasuryHealthCard({
                   variant="secondary"
                   size="sm"
                   asChild={recommendedAction.ctaHref !== "#"}
+                  onClick={recommendedAction.ctaHref === "#" ? onSwitchToManage : undefined}
                 >
                   {recommendedAction.ctaHref !== "#" ? (
                     <Link href={recommendedAction.ctaHref}>
@@ -483,9 +491,7 @@ function TreasuryHealthCard({
                       <ArrowRight className="h-4 w-4" />
                     </Link>
                   ) : (
-                    <button type="button" onClick={onSwitchToManage}>
-                      {recommendedAction.cta}
-                    </button>
+                    <span>{recommendedAction.cta}</span>
                   )}
                 </Button>
               ) : null}

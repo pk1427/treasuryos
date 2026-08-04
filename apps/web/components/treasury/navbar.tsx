@@ -23,7 +23,7 @@ export function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const { address, isConnected, isConnecting, error, connect, disconnect } = useWallet();
-  const { mode, isOwnerVerified } = useTreasurySession();
+  const { mode, isOwnerVerified, isKeeperHubManaged } = useTreasurySession();
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/10 bg-zinc-950/70 backdrop-blur-xl">
@@ -58,7 +58,13 @@ export function Navbar() {
         <div className="hidden items-center gap-3 md:flex">
           <StatusPill tone="info">Sepolia testnet</StatusPill>
           <StatusPill tone={mode === "manage" && isOwnerVerified ? "success" : mode === "manage" ? "warning" : "neutral"}>
-            {mode === "manage" ? isOwnerVerified ? "Manage · owner verified" : "Manage · verification required" : "Analyze · read-only"}
+            {isKeeperHubManaged
+              ? "KeeperHub · managed"
+              : mode === "manage"
+                ? isOwnerVerified
+                  ? "Manage · owner verified"
+                  : "Manage · verification required"
+                : "Analyze · read-only"}
           </StatusPill>
           {isConnected && address ? (
             <div className="flex items-center gap-2">
@@ -122,7 +128,7 @@ export function Navbar() {
           </nav>
           <div className="mt-3 flex flex-col gap-2">
             <StatusPill tone="info" className="justify-center">Sepolia testnet</StatusPill>
-            <StatusPill tone={mode === "manage" && isOwnerVerified ? "success" : mode === "manage" ? "warning" : "neutral"} className="justify-center">{mode === "manage" ? isOwnerVerified ? "Manage · owner verified" : "Manage · verification required" : "Analyze · read-only"}</StatusPill>
+            <StatusPill tone={mode === "manage" && isOwnerVerified ? "success" : mode === "manage" ? "warning" : "neutral"} className="justify-center">{isKeeperHubManaged ? "KeeperHub · managed" : mode === "manage" ? isOwnerVerified ? "Manage · owner verified" : "Manage · verification required" : "Analyze · read-only"}</StatusPill>
             {isConnected && address ? (
               <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
                 <span className="font-mono text-xs text-zinc-300">

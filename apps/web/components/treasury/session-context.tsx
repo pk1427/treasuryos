@@ -32,6 +32,7 @@ type TreasurySessionState = {
   setAnalyzedAddress: (address: string) => void;
   connectedWallet: string | null;
   isOwnerVerified: boolean;
+  isKeeperHubManaged: boolean;
   reportResponse: ReportResponse | null;
   setReportResponse: (response: ReportResponse | null) => void;
   riskV2: RiskReportV2 | null;
@@ -44,10 +45,29 @@ type TreasurySessionState = {
   setSimulateState: (state: StepState) => void;
   publishState: StepState;
   setPublishState: (state: StepState) => void;
+  executionResult: {
+    txHash: string;
+    explorer: string;
+    status: string;
+    executionMode?: string;
+    keeperhub?: {
+      executionId: string;
+      transactionHash: string;
+      explorerUrl: string;
+      chainId: number;
+      gasUsed: string;
+      sponsored: boolean;
+      finalStatus: string;
+      executedAt: string;
+    } | null;
+  } | null;
+  setExecutionResult: (result: TreasurySessionState["executionResult"]) => void;
 };
 
 const TreasurySessionContext = createContext<TreasurySessionState | null>(null);
 const STORAGE_KEY = "treasuryos.session.v1";
+
+const KEEPERHUB_ORG_WALLET = "0x1DB018D456bC00810BD02E76787be42CAD7F60cF";
 
 type StoredSession = {
   mode?: TreasuryMode;
@@ -58,6 +78,7 @@ type StoredSession = {
   attestation?: AttestationResult | null;
   simulateState?: StepState;
   publishState?: StepState;
+  executionResult?: TreasurySessionState["executionResult"];
 };
 
 export function TreasurySessionProvider({ children }: { children: ReactNode }) {
@@ -71,6 +92,13 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
   const [attestation, setAttestation] = useState<AttestationResult | null>(null);
   const [simulateState, setSimulateState] = useState<StepState>("idle");
   const [publishState, setPublishState] = useState<StepState>("idle");
+  const [executionResult, setExecutionResult] =
+    useState<TreasurySessionState["executionResult"]>(null);
+
+  const scanned = reportResponse?.report.address ?? analyzedAddress;
+  const isKeeperHubManaged = Boolean(
+    scanned && scanned.toLowerCase() === KEEPERHUB_ORG_WALLET.toLowerCase()
+  );
 
   useEffect(() => {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -87,6 +115,7 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
         setAttestation(stored.attestation ?? null);
         setSimulateState(stored.simulateState ?? "idle");
         setPublishState(stored.publishState ?? "idle");
+        setExecutionResult(stored.executionResult ?? null);
       });
     } catch {
       window.localStorage.removeItem(STORAGE_KEY);
@@ -98,8 +127,6 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
 
     if (!walletAddress || mode !== "analyze") return;
 
-    const scanned = reportResponse?.report.address ?? analyzedAddress;
-
     if (!scanned) {
       window.queueMicrotask(() => {
         setMode("manage");
@@ -108,12 +135,19 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (walletAddress.toLowerCase() === scanned.toLowerCase()) {
+    if (isKeeperHubManaged || walletAddress.toLowerCase() === scanned.toLowerCase()) {
       window.queueMicrotask(() => {
         setMode("manage");
       });
     }
-  }, [wallet.address, mode, analyzedAddress, reportResponse?.report.address]);
+  }, [wallet.address, mode, scanned, isKeeperHubManaged]);
+
+  useEffect(() => {
+    if (mode !== "analyze" || !isKeeperHubManaged) return;
+    window.queueMicrotask(() => {
+      setMode("manage");
+    });
+  }, [mode, isKeeperHubManaged]);
 
   useEffect(() => {
     const stored: StoredSession = {
@@ -125,11 +159,13 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
       attestation,
       simulateState,
       publishState,
+      executionResult,
     };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
   }, [
     analyzedAddress,
     attestation,
+    executionResult,
     keeperHubSimulation,
     mode,
     publishState,
@@ -139,13 +175,15 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
   ]);
 
   const isOwnerVerified = useMemo(() => {
-    const scanned = reportResponse?.report.address ?? analyzedAddress;
-    return Boolean(
-      wallet.address &&
-        scanned &&
-        wallet.address.toLowerCase() === scanned.toLowerCase()
+    return (
+      isKeeperHubManaged ||
+      Boolean(
+        wallet.address &&
+          scanned &&
+          wallet.address.toLowerCase() === scanned.toLowerCase()
+      )
     );
-  }, [analyzedAddress, reportResponse?.report.address, wallet.address]);
+  }, [scanned, wallet.address, isKeeperHubManaged]);
 
   return (
     <TreasurySessionContext.Provider
@@ -156,6 +194,7 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
         setAnalyzedAddress,
         connectedWallet: wallet.address,
         isOwnerVerified,
+        isKeeperHubManaged,
         reportResponse,
         setReportResponse,
         riskV2,
@@ -168,6 +207,8 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
         setSimulateState,
         publishState,
         setPublishState,
+        executionResult,
+        setExecutionResult,
       }}
     >
       {children}

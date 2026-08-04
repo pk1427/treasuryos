@@ -106,6 +106,8 @@ export const executions = pgTable("executions", {
   gasUsed: numeric("gas_used", { precision: 18, scale: 0 }),
   gasEstimate: numeric("gas_estimate", { precision: 18, scale: 0 }),
   simulationResult: text("simulation_result"),
+  executionMode: text("execution_mode"),
+  keeperhubMetadata: jsonb("keeperhub_metadata"),
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
 

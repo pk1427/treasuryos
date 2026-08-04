@@ -34,16 +34,18 @@ export default function PositionsPage() {
     analyzedAddress: address,
     reportResponse,
     connectedWallet,
+    isKeeperHubManaged,
   } = session;
 
   const report = reportResponse?.report;
   const positions = useMemo(() => report?.snapshot.positions ?? [], [report?.snapshot.positions]);
   const totalValue = useMemo(() => report?.snapshot.totalValueUsd ?? 0, [report?.snapshot.totalValueUsd]);
   const ownerVerified =
-    Boolean(wallet.address && report?.address) &&
-    wallet.address!.toLowerCase() === report!.address.toLowerCase();
+    isKeeperHubManaged ||
+    (Boolean(wallet.address && report?.address) &&
+      wallet.address!.toLowerCase() === report!.address.toLowerCase());
   const locked =
-    mode === "analyze" || !connectedWallet || !ownerVerified;
+    mode === "analyze" || (!isKeeperHubManaged && (!connectedWallet || !ownerVerified));
 
   const chartData = useMemo(() => {
     const sorted = [...positions]
@@ -102,6 +104,7 @@ export default function PositionsPage() {
             analyzedAddress={report?.address ?? address}
             connectedWallet={connectedWallet}
             onConnect={wallet.connect}
+            isKeeperHubManaged={isKeeperHubManaged}
           />
         ) : positions.length === 0 ? (
           <EmptyState />
@@ -382,11 +385,13 @@ function LockedPanel({
   analyzedAddress,
   connectedWallet,
   onConnect,
+  isKeeperHubManaged,
 }: {
   mode: "analyze" | "manage";
   analyzedAddress: string;
   connectedWallet: string | null;
   onConnect: () => void;
+  isKeeperHubManaged: boolean;
 }) {
   const mismatch =
     Boolean(connectedWallet && analyzedAddress) &&
@@ -403,11 +408,13 @@ function LockedPanel({
           <p className="mt-1 text-sm text-zinc-400">
             {mismatch
               ? `Connected wallet ${shortenAddress(connectedWallet!)} does not own ${shortenAddress(analyzedAddress)}.`
-              : mode === "analyze"
-                ? "Analyze mode is intentionally read-only. Connect the treasury owner wallet to unlock management, execution, and private proof workflows."
-                : "Connect the wallet that owns this treasury to unlock execution planning; TreasuryOS never takes custody of funds."}
+              : isKeeperHubManaged
+                ? "This treasury is managed by your authenticated KeeperHub organization. Execution is available without a connected wallet."
+                : mode === "analyze"
+                  ? "Analyze mode is intentionally read-only. Connect the treasury owner wallet to unlock management, execution, and private proof workflows."
+                  : "Connect the wallet that owns this treasury to unlock execution planning; TreasuryOS never takes custody of funds."}
           </p>
-          {!connectedWallet ? (
+          {!isKeeperHubManaged && !connectedWallet ? (
             <Button className="mt-3" variant="secondary" size="sm" onClick={onConnect}>
               <Wallet className="h-4 w-4" />
               Connect Wallet

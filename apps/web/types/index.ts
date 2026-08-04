@@ -81,6 +81,11 @@ export interface ExecutionResult {
   txHash: string;
   status: ExecutionStatus;
   gasUsed?: bigint;
+  executionId?: string;
+  explorerUrl?: string;
+  chainId?: number;
+  sponsored?: boolean;
+  executionMode?: "direct" | "keeperhub";
 }
 
 export interface AuditEntry {

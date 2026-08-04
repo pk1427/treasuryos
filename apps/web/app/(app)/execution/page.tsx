@@ -32,6 +32,7 @@ export default function ExecutionPage() {
     analyzedAddress: address,
     reportResponse,
     connectedWallet,
+    isKeeperHubManaged,
   } = session;
 
   const report = reportResponse?.report;
@@ -48,10 +49,22 @@ export default function ExecutionPage() {
   const [simulation, setSimulation] = useState<Record<string, unknown> | null>(null);
   const [simulating, setSimulating] = useState(false);
   const [signed, setSigned] = useState(false);
+  const [executionMode, setExecutionMode] = useState<"direct" | "keeperhub">("direct");
   const [executionResult, setExecutionResult] = useState<{
     txHash: string;
     explorer: string;
     status: string;
+    executionMode?: string;
+    keeperhub?: {
+      executionId: string;
+      transactionHash: string;
+      explorerUrl: string;
+      chainId: number;
+      gasUsed: string;
+      sponsored: boolean;
+      finalStatus: string;
+      executedAt: string;
+    } | null;
   } | null>(null);
   const [activeTab, setActiveTab] = useState<"live" | "history">("live");
   const [executionHistory, setExecutionHistory] = useState<
@@ -73,7 +86,7 @@ export default function ExecutionPage() {
   }, [wallet.address, executionResult]);
 
   const locked =
-    mode === "analyze" || !connectedWallet || !ownerVerified;
+    mode === "analyze" || (!isKeeperHubManaged && (!connectedWallet || !ownerVerified));
   const mismatch =
     Boolean(connectedWallet && report?.address) &&
     connectedWallet!.toLowerCase() !== report!.address.toLowerCase();
@@ -82,6 +95,39 @@ export default function ExecutionPage() {
   const walletMatches = isConnected && wallet.address && report?.address
     ? wallet.address.toLowerCase() === report.address.toLowerCase()
     : false;
+  const canManage = walletMatches || isKeeperHubManaged;
+
+  const effectiveWalletAddressForApi = () => {
+    if (executionMode === "keeperhub") {
+      return wallet.address || report?.address || address || "";
+    }
+    return wallet.address || "";
+  };
+  const keeperHubSteps = ["Generate", "Approve", "Simulate", "Execute"];
+  const directSteps = ["Generate", "Approve", "Simulate", "Sign", "Execute"];
+  const workflowSteps = executionMode === "keeperhub" ? keeperHubSteps : directSteps;
+  const keeperHubActiveStep =
+    planStatus === "SIGNED" || (planStatus === "APPROVED" && simulation)
+      ? "Execute"
+      : planStatus === "APPROVED"
+        ? "Simulate"
+        : "Approve";
+  const directActiveStep =
+    planStatus === "SIGNED" ? "Execute"
+    : planStatus === "APPROVED" ? simulation ? "Sign" : "Simulate"
+    : "Approve";
+  const activeStep = executionMode === "keeperhub" ? keeperHubActiveStep : directActiveStep;
+  const keeperHubCompletedThrough =
+    planStatus === "SIGNED" || (planStatus === "APPROVED" && simulation)
+      ? 2
+      : planStatus === "APPROVED"
+        ? 1
+        : 0;
+  const directCompletedThrough =
+    planStatus === "SIGNED" ? 3
+    : planStatus === "APPROVED" ? simulation ? 2 : 1
+    : 0;
+  const completedThrough = executionMode === "keeperhub" ? keeperHubCompletedThrough : directCompletedThrough;
 
   async function loadPlan() {
     if (!report?.address) return;
@@ -110,32 +156,95 @@ export default function ExecutionPage() {
   }
 
   async function executePlan() {
-    if (!planId || !wallet.address) return;
+    if (!planId) return;
     setActionLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/execution-plan/${planId}/execute`, {
+      const effectiveWalletAddress =
+        executionMode === "keeperhub"
+          ? wallet.address || (report?.address ?? address)
+          : wallet.address;
+
+      if (!effectiveWalletAddress) {
+        throw new Error("Wallet address is required");
+      }
+
+      if (executionMode === "keeperhub") {
+        const response = await fetch(`/api/execution-plan/${planId}/execute`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ walletAddress: effectiveWalletAddress }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error ?? "Execution failed");
+
+        setExecutionResult({
+          txHash: data.txHash,
+          explorer: data.explorerUrl,
+          status: data.status,
+          executionMode: data.executionMode,
+          keeperhub: data.keeperhub,
+        });
+        setExecutionHistory((history) => [
+          {
+            date: new Date().toISOString(),
+            action: "Swap ETH → USDC",
+            txHash: data.txHash,
+            explorer: data.explorerUrl,
+            status: data.status,
+          },
+          ...history,
+        ]);
+        return;
+      }
+
+      const prepareResponse = await fetch("/api/execute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ walletAddress: wallet.address }),
+        body: JSON.stringify({ phase: "prepare", planId, walletAddress: wallet.address }),
       });
 
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? "Execution failed");
+      const prepareData = await prepareResponse.json();
+      if (!prepareResponse.ok) throw new Error(prepareData.error ?? "Failed to prepare transaction");
+
+      const transaction = prepareData.transaction;
+      if (!transaction || !transaction.to || !transaction.data) {
+        throw new Error("Invalid transaction preparation response");
+      }
+
+      const txHash = await wallet.sendTransaction({
+        to: transaction.to,
+        data: transaction.data,
+        value: transaction.value,
+        chainId: transaction.chainId,
+      });
+
+      if (!txHash) throw new Error("Wallet did not return a transaction hash");
+
+      const completeResponse = await fetch("/api/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phase: "complete", planId, walletAddress: wallet.address, txHash }),
+      });
+
+      const completeData = await completeResponse.json();
+      if (!completeResponse.ok) throw new Error(completeData.error ?? "Execution completion failed");
 
       setExecutionResult({
-        txHash: data.txHash,
-        explorer: data.explorerUrl,
-        status: data.status,
+        txHash: completeData.txHash,
+        explorer: completeData.explorer,
+        status: completeData.status,
+        executionMode: "direct",
       });
       setExecutionHistory((history) => [
         {
           date: new Date().toISOString(),
           action: "Swap ETH → USDC",
-          txHash: data.txHash,
-          explorer: data.explorerUrl,
-          status: data.status,
+          txHash: completeData.txHash,
+          explorer: completeData.explorer,
+          status: completeData.status,
         },
         ...history,
       ]);
@@ -181,7 +290,7 @@ export default function ExecutionPage() {
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {locked && !mismatch ? (
-          <LockedPanel mode={mode} onConnect={wallet.connect} />
+          <LockedPanel mode={mode} onConnect={wallet.connect} isKeeperHubManaged={isKeeperHubManaged} />
         ) : locked && mismatch ? (
           <MismatchedWalletPanel connectedWallet={connectedWallet} analyzedAddress={report?.address ?? address} />
         ) : executionResult ? (
@@ -199,6 +308,8 @@ export default function ExecutionPage() {
               txHash={executionResult.txHash}
               explorer={executionResult.explorer}
               reportHash={reportHash}
+              executionMode={executionResult.executionMode}
+              keeperhub={executionResult.keeperhub}
             />
           </div>
         ) : (
@@ -245,9 +356,21 @@ export default function ExecutionPage() {
             ) : plan && plan.steps.length > 0 ? (
               <div className="space-y-6">
                 <section className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-4">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-cyan-200">Owner-controlled execution workflow</p>
-                  <WorkflowStepper steps={["Generate", "Approve", "Simulate", "Sign", "Execute"]} activeStep={planStatus === "SIGNED" ? "Execute" : planStatus === "APPROVED" ? simulation ? "Sign" : "Simulate" : "Approve"} completedThrough={planStatus === "SIGNED" ? 3 : planStatus === "APPROVED" ? simulation ? 2 : 1 : 0} />
-                  <p className="mt-3 text-xs text-zinc-400">Approval, simulation, and intent signing do not move funds. Only the final Execute action opens your wallet transaction prompt.</p>
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-cyan-200">
+                    {executionMode === "keeperhub"
+                      ? "KeeperHub execution workflow"
+                      : "Owner-controlled execution workflow"}
+                  </p>
+                  <WorkflowStepper
+                    steps={workflowSteps}
+                    activeStep={activeStep}
+                    completedThrough={completedThrough}
+                  />
+                  <p className="mt-3 text-xs text-zinc-400">
+                    {executionMode === "keeperhub"
+                      ? "KeeperHub executes this plan server-side through the organization wallet. No MetaMask signing is required."
+                      : "Approval, simulation, and intent signing do not move funds. Only the final Execute action opens your wallet transaction prompt."}
+                  </p>
                 </section>
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusPill tone="success">Ownership verified</StatusPill>
@@ -260,8 +383,53 @@ export default function ExecutionPage() {
                   slippageBps={slippageBps}
                   minReceived={minReceived}
                 />
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-zinc-500 uppercase tracking-wide">Execution Mode</span>
+                  <div className="flex rounded-lg border border-white/10 bg-zinc-950/50 p-0.5">
+                    <button
+                      type="button"
+                      className={cn(
+                        "rounded-md px-3 py-1.5 text-xs font-medium transition",
+                        executionMode === "direct"
+                          ? "bg-cyan-400/10 text-cyan-300"
+                          : "text-zinc-500 hover:text-zinc-300"
+                      )}
+                      onClick={() => setExecutionMode("direct")}
+                    >
+                      Direct Execution
+                    </button>
+                    <button
+                      type="button"
+                      className={cn(
+                        "rounded-md px-3 py-1.5 text-xs font-medium transition",
+                        executionMode === "keeperhub"
+                          ? "bg-violet-400/10 text-violet-300"
+                          : "text-zinc-500 hover:text-zinc-300"
+                      )}
+                      onClick={() => setExecutionMode("keeperhub")}
+                    >
+                      KeeperHub Execution
+                    </button>
+                  </div>
+                </div>
                 <div className="flex flex-wrap gap-3">
-                  {planStatus === "PLANNED" && walletMatches ? (
+                  {executionMode === "keeperhub" && planStatus === "SIGNED" && (walletMatches || isKeeperHubManaged) ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-violet-500/20 bg-violet-500/5 px-3 py-2">
+                      <Badge variant="outline" className="normal-case border-violet-400/50 text-violet-200">
+                        KeeperHub
+                      </Badge>
+                      <span className="text-xs text-zinc-400">Sponsored execution • Private routing • Gas sponsorship</span>
+                    </div>
+                  ) : null}
+                  {executionMode === "direct" && planStatus === "SIGNED" && walletMatches ? (
+                    <div className="flex items-center gap-2 rounded-lg border border-cyan-500/20 bg-cyan-500/5 px-3 py-2">
+                      <Badge variant="outline" className="normal-case border-cyan-400/50 text-cyan-200">
+                        Direct
+                      </Badge>
+                      <span className="text-xs text-zinc-400">Owner-signed • Direct RPC broadcast</span>
+                    </div>
+                  ) : null}
+                  {planStatus === "PLANNED" && canManage ? (
                     <Button
                       variant="secondary"
                       disabled={actionLoading}
@@ -273,7 +441,7 @@ export default function ExecutionPage() {
                           const response = await fetch(`/api/execution-plan/${planId}/approve`, {
                             method: "POST",
                             headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ walletAddress: wallet.address }),
+                            body: JSON.stringify({ walletAddress: effectiveWalletAddressForApi() }),
                           });
                           const data = await response.json();
                           if (!response.ok) throw new Error(data.error ?? "Approval failed");
@@ -289,14 +457,14 @@ export default function ExecutionPage() {
                       Approve Plan
                     </Button>
                   ) : null}
-                  {planStatus === "APPROVED" && !signed ? (
+                  {planStatus === "APPROVED" && !signed && canManage ? (
                     <Button variant="secondary" onClick={async () => {
                       setSimulating(true);
                       try {
                         const response = await fetch(`/api/execution-plan/${planId}/simulate`, {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ walletAddress: wallet.address }),
+                          body: JSON.stringify({ walletAddress: effectiveWalletAddressForApi() }),
                         });
                         const data = await response.json();
                         if (!response.ok) {
@@ -314,7 +482,7 @@ export default function ExecutionPage() {
                       Simulate
                     </Button>
                   ) : null}
-                  {planStatus === "APPROVED" && simulation && !signed && walletMatches ? (
+                  {executionMode === "direct" && planStatus === "APPROVED" && simulation && !signed && walletMatches ? (
                     <Button onClick={async () => {
                       if (!planId || !wallet.address) return;
                       setActionLoading(true);
@@ -344,7 +512,7 @@ export default function ExecutionPage() {
                       Sign Execution Intent
                     </Button>
                   ) : null}
-                  {planStatus === "SIGNED" && walletMatches ? (
+                  {(executionMode === "direct" ? planStatus === "SIGNED" : planStatus === "APPROVED" && simulation) && canManage ? (
                     <Button onClick={executePlan} disabled={actionLoading}>
                       {actionLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
                       Execute
@@ -517,11 +685,13 @@ function PreconditionCheck({ label, passed }: { label: string; passed: boolean }
   );
 }
 
-function LockedPanel({ mode, onConnect }: { mode: "analyze" | "manage"; onConnect: () => void }) {
+function LockedPanel({ mode, onConnect, isKeeperHubManaged }: { mode: "analyze" | "manage"; onConnect: () => void; isKeeperHubManaged: boolean }) {
   const noWalletCopy =
     mode === "analyze"
       ? "Connect the wallet that owns this treasury to switch from Analyze mode into Manage mode."
-      : "No wallet is connected. Connect the treasury owner wallet to unlock execution planning.";
+      : isKeeperHubManaged
+        ? "This treasury is managed by your authenticated KeeperHub organization. Execution is available without a connected wallet."
+        : "No wallet is connected. Connect the treasury owner wallet to unlock execution planning.";
 
   return (
     <Card className="rounded-xl border-amber-500/30 bg-amber-500/10">
@@ -532,10 +702,12 @@ function LockedPanel({ mode, onConnect }: { mode: "analyze" | "manage"; onConnec
           <p className="mt-1 text-sm text-zinc-400">
             {noWalletCopy}
           </p>
-          <Button className="mt-3" variant="secondary" size="sm" onClick={onConnect}>
-            <Wallet className="h-4 w-4" />
-            Connect Wallet
-          </Button>
+          {!isKeeperHubManaged ? (
+            <Button className="mt-3" variant="secondary" size="sm" onClick={onConnect}>
+              <Wallet className="h-4 w-4" />
+              Connect Wallet
+            </Button>
+          ) : null}
         </div>
       </CardContent>
     </Card>
@@ -648,11 +820,29 @@ function BeforeAfterPanel({ ethExposureBefore, ethExposureAfter, usdcBalanceBefo
   );
 }
 
-function ProofOfExecution({ txHash, explorer, reportHash, attestationHash }: {
+function ProofOfExecution({
+  txHash,
+  explorer,
+  reportHash,
+  attestationHash,
+  executionMode,
+  keeperhub,
+}: {
   txHash: string;
   explorer: string;
   reportHash?: string;
   attestationHash?: string;
+  executionMode?: string;
+  keeperhub?: {
+    executionId: string;
+    transactionHash: string;
+    explorerUrl: string;
+    chainId: number;
+    gasUsed: string;
+    sponsored: boolean;
+    finalStatus: string;
+    executedAt: string;
+  } | null;
 }) {
   return (
     <Card className="rounded-xl bg-zinc-900/70">
@@ -671,6 +861,38 @@ function ProofOfExecution({ txHash, explorer, reportHash, attestationHash }: {
             </Button>
           </div>
         </div>
+        {executionMode === "keeperhub" && keeperhub ? (
+          <div className="rounded-lg border border-violet-500/30 bg-violet-500/10 p-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="normal-case border-violet-400/50 text-violet-200">
+                KeeperHub
+              </Badge>
+              <Badge variant={keeperhub.sponsored ? "low" : "medium"} className="normal-case">
+                {keeperhub.sponsored ? "Sponsored" : "Self-funded"}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs uppercase text-zinc-500">Execution ID</span>
+              <span className="font-mono text-xs text-zinc-300">{shortenHash(keeperhub.executionId)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs uppercase text-zinc-500">Chain ID</span>
+              <span className="font-mono text-xs text-zinc-300">{keeperhub.chainId}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs uppercase text-zinc-500">Gas Used</span>
+              <span className="font-mono text-xs text-zinc-300">{Number(keeperhub.gasUsed).toLocaleString()}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs uppercase text-zinc-500">Final Status</span>
+              <Badge variant="low" className="normal-case">{keeperhub.finalStatus}</Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs uppercase text-zinc-500">Executed At</span>
+              <span className="font-mono text-xs text-zinc-300">{new Date(keeperhub.executedAt).toLocaleString()}</span>
+            </div>
+          </div>
+        ) : null}
         {reportHash ? (
           <div className="flex items-center justify-between">
             <span className="text-xs uppercase text-zinc-500">Report Hash</span>

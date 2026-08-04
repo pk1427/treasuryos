@@ -186,7 +186,11 @@ export class DecisionRepository {
 }
 
 export class ExecutionRepository {
-  async create(decisionId: string, data: { simulationResult?: string }) {
+  async create(decisionId: string, data: {
+    simulationResult?: string;
+    executionMode?: string;
+    keeperhubMetadata?: Record<string, unknown>;
+  }) {
     const db = requireDb();
     const [execution] = await db
       .insert(schema.executions)
@@ -194,6 +198,8 @@ export class ExecutionRepository {
         decisionId,
         status: "simulating",
         simulationResult: data.simulationResult,
+        executionMode: data.executionMode,
+        keeperhubMetadata: data.keeperhubMetadata,
       })
       .returning();
     return execution;
@@ -206,6 +212,8 @@ export class ExecutionRepository {
       status: ExecutionStatus;
       gasUsed?: string;
       gasEstimate?: string;
+      executionMode?: string;
+      keeperhubMetadata?: Record<string, unknown>;
     }
   ) {
     const db = requireDb();

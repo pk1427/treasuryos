@@ -202,12 +202,22 @@ export async function execute(
       status?: string;
       transactionHash?: string;
       gasUsed?: string;
+      transactionLink?: string;
+      sponsored?: boolean;
+      result?: { chainId?: string | number };
     };
 
+    const chainId = typeof data.result?.chainId === "string" ? parseInt(data.result.chainId, 10) : (data.result?.chainId as number | undefined);
+
     return {
+      executionId: data.executionId,
       txHash: data.transactionHash ?? "",
       status: (data.status === "completed" ? "confirmed" : (data.status ?? "confirmed")) as ExecutionResult["status"],
       gasUsed: data.gasUsed ? BigInt(data.gasUsed) : simulation.gasEstimate,
+      explorerUrl: data.transactionLink,
+      chainId,
+      sponsored: data.sponsored ?? false,
+      executionMode: "keeperhub" as const,
     };
   }
 
