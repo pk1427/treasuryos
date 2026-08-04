@@ -82,6 +82,7 @@ export function V1Dashboard() {
     (Boolean(wallet.address && report?.address) &&
       wallet.address!.toLowerCase() === report!.address.toLowerCase());
   const executionUnlocked = mode === "manage" && ownerVerified;
+  const executionReady = executionUnlocked && executableActions.length > 0;
 
   const largestPosition = useMemo(() => {
     if (!report) return null;
@@ -107,13 +108,6 @@ export function V1Dashboard() {
     );
   }, [riskV2]);
   const criticalRiskActive = primaryRisk?.severity === "critical";
-
-  const hasEthPosition = useMemo(() => {
-    if (!report) return false;
-    return report.snapshot.positions.some(
-      (p) => p.protocol === "Wallet" && p.asset === "ETH" && p.amountUsd > 0
-    );
-  }, [report]);
 
   async function fetchExecutableActions(targetAddress: string) {
     setActionsLoading(true);
@@ -199,24 +193,24 @@ export function V1Dashboard() {
       return {
         title: `Address critical risk: ${primaryRisk.title}`,
         description: primaryRisk.description,
-        cta: executionUnlocked ? "Review execution plan" : "Switch to Manage mode",
-        ctaHref: executionUnlocked ? "/execution" : "#",
+        cta: executionReady ? "Review execution plan" : mode === "analyze" ? "Switch to Manage mode" : null,
+        ctaHref: executionReady ? "/execution" : "#",
       };
     }
     if (primaryRisk) {
       return {
         title: `Review ${primaryRisk.title}`,
         description: primaryRisk.description,
-        cta: executionUnlocked ? "Review execution plan" : "Switch to Manage mode",
-        ctaHref: executionUnlocked ? "/execution" : "#",
+        cta: executionReady ? "Review execution plan" : mode === "analyze" ? "Switch to Manage mode" : null,
+        ctaHref: executionReady ? "/execution" : "#",
       };
     }
     if (report && largestPosition) {
       return {
         title: `Monitor ${largestPosition.asset} exposure`,
         description: `This position represents ${percent(exposure)} of the portfolio. Review concentration and consider rebalancing if risk thresholds are breached.`,
-        cta: executionUnlocked ? "Review execution plan" : "Switch to Manage mode",
-        ctaHref: executionUnlocked ? "/execution" : "#",
+        cta: executionReady ? "Review execution plan" : mode === "analyze" ? "Switch to Manage mode" : null,
+        ctaHref: executionReady ? "/execution" : "#",
       };
     }
     return {
@@ -232,7 +226,8 @@ export function V1Dashboard() {
     report,
     largestPosition,
     exposure,
-    executionUnlocked,
+    executionReady,
+    mode,
   ]);
 
   return (
@@ -323,7 +318,7 @@ export function V1Dashboard() {
             <div className="space-y-6">
               <LifecycleStrip
                 mode={mode}
-                executionUnlocked={executionUnlocked}
+                executionUnlocked={executionReady}
                 hasReport={Boolean(report)}
                 hasSimulation={Boolean(session.keeperHubSimulation)}
                 hasAttestation={Boolean(session.attestation)}
@@ -335,12 +330,11 @@ export function V1Dashboard() {
                 primaryRisk={primaryRisk}
                 criticalRiskActive={criticalRiskActive}
                 recommendedAction={recommendedAction}
-                executionUnlocked={executionUnlocked}
+                executionUnlocked={executionReady}
                 mode={mode}
                 executableActions={executableActions}
                 actionsLoading={actionsLoading}
                 actionsError={actionsError}
-                hasEthPosition={hasEthPosition}
                 onSwitchToManage={() => setMode("manage")}
               />
 
@@ -353,8 +347,9 @@ export function V1Dashboard() {
                 largestPosition={largestPosition}
                 exposure={exposure}
                 network={network}
-                managedWallet={wallet.address}
+                managedWallet={report.address}
                 ownerVerified={ownerVerified}
+                isKeeperHubManaged={isKeeperHubManaged}
               />
 
               <Card className="rounded-xl bg-zinc-900/70">
@@ -393,7 +388,6 @@ function TreasuryHealthCard({
   executableActions,
   actionsLoading,
   actionsError,
-  hasEthPosition,
   onSwitchToManage,
 }: {
   report: RiskReport;
@@ -411,7 +405,6 @@ function TreasuryHealthCard({
   executableActions: Array<{ label: string; fromAsset: string; toAsset: string }>;
   actionsLoading: boolean;
   actionsError: string | null;
-  hasEthPosition: boolean;
   onSwitchToManage: () => void;
 }) {
   const riskGrade = criticalRiskActive
@@ -475,8 +468,8 @@ function TreasuryHealthCard({
                 className="normal-case"
               >
                 {executionUnlocked
-                  ? "Execution available"
-                  : "Execution locked"}
+                  ? "Ready for Execution"
+                  : "No supported execution plan"}
               </Badge>
               {recommendedAction.cta ? (
                 <Button
@@ -528,17 +521,6 @@ function TreasuryHealthCard({
                 </Link>
               ))}
             </div>
-          ) : hasEthPosition ? (
-            <Link
-              href="/execution"
-              className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/[0.06]"
-            >
-              <Activity className="h-4 w-4 text-cyan-300" />
-              <span className="font-medium">Execution Plan</span>
-              <span className="text-xs text-zinc-500">
-                ETH detected — review plan for swap options
-              </span>
-            </Link>
           ) : (
             <div className="flex items-center gap-2 text-sm text-zinc-500">
               <Activity className="h-4 w-4" />
@@ -558,6 +540,7 @@ function PortfolioSummary({
   network,
   managedWallet,
   ownerVerified,
+  isKeeperHubManaged,
 }: {
   report: RiskReport;
   largestPosition: TreasuryPosition | null;
@@ -565,6 +548,7 @@ function PortfolioSummary({
   network: string;
   managedWallet: string | null;
   ownerVerified: boolean;
+  isKeeperHubManaged: boolean;
 }) {
   const positions = report.snapshot.positions;
   const walletPositions = positions.filter((p) => p.protocol === "Wallet");
@@ -614,7 +598,7 @@ function PortfolioSummary({
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs uppercase text-zinc-500">
-              Managed Wallet
+              {isKeeperHubManaged ? "Organization Treasury" : "Managed Treasury"}
             </p>
             <p className="font-mono text-sm text-zinc-300">
               {managedWallet
@@ -626,7 +610,11 @@ function PortfolioSummary({
             tone={ownerVerified ? "success" : "neutral"}
             className="normal-case"
           >
-            {ownerVerified ? "Owner verified" : "Unverified"}
+            {isKeeperHubManaged
+              ? "KeeperHub Managed"
+              : ownerVerified
+                ? "Verified Treasury Owner"
+                : "Unverified"}
           </StatusPill>
         </div>
 

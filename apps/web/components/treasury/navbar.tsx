@@ -14,8 +14,8 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/positions", label: "Positions" },
   { href: "/execution", label: "Execution" },
-  { href: "/proof-attestation", label: "Proof" },
-  { href: "/proof-trail", label: "Trail" },
+  { href: "/proof-attestation", label: "Attestations" },
+  { href: "/proof-trail", label: "Proof Trail" },
   { href: "/how-it-works", label: "How it Works" },
 ];
 
@@ -80,7 +80,7 @@ export function Navbar() {
                 Disconnect
               </Button>
             </div>
-          ) : (
+          ) : !isKeeperHubManaged ? (
             <div className="flex flex-col items-end gap-1">
               <Button
                 variant="secondary"
@@ -97,7 +97,7 @@ export function Navbar() {
                 </span>
               ) : null}
             </div>
-          )}
+          ) : null}
         </div>
 
         <Button
@@ -143,7 +143,7 @@ export function Navbar() {
                   Disconnect
                 </Button>
               </div>
-            ) : (
+            ) : !isKeeperHubManaged ? (
               <div className="flex flex-col gap-1">
                 <Button
                   variant="secondary"
@@ -161,7 +161,7 @@ export function Navbar() {
                   </span>
                 ) : null}
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       ) : null}

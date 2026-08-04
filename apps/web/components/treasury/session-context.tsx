@@ -50,6 +50,17 @@ type TreasurySessionState = {
     explorer: string;
     status: string;
     executionMode?: string;
+    actualOutput?: {
+      asset: "USDC";
+      amount: string;
+    } | null;
+    postExecution?: {
+      totalValueUsd: number;
+      ethValueUsd: number;
+      usdcValueUsd: number;
+      ethAllocation: number;
+      usdcAllocation: number;
+    } | null;
     keeperhub?: {
       executionId: string;
       transactionHash: string;

@@ -117,6 +117,7 @@ export const keeperhubExecutionAdapter: ExecutionAdapter & {
       adapterId: "keeperhub",
       amountIn: amountIn.toString(),
       amountOut: "0",
+      amountOutUsd: 0,
       amountOutMinimum: "0",
       slippageBps: SLIPPAGE_BPS,
       route: "keeperhub",

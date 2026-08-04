@@ -4,6 +4,7 @@ import { scoreTreasuryRisk } from "@treasuryos/risk-engine";
 import { buildRiskReportV2 } from "@treasuryos/risk-engine";
 import { runStressScenarios } from "@treasuryos/simulator";
 import type { RiskReport, RiskReportV2 } from "@treasuryos/shared";
+import { summarizeSnapshot, tracePipeline } from "@/lib/debug/pipeline-trace";
 
 export async function generateRiskReport(address: string): Promise<{
   report: RiskReport;
@@ -32,9 +33,21 @@ export async function generateRiskReport(address: string): Promise<{
 
   const reportForHash = stripTimestamps(report);
 
+  const reportHash = hashRiskReport(reportForHash as RiskReport);
+
+  tracePipeline("report-generated", {
+    snapshot: summarizeSnapshot(snapshot),
+    reportHash,
+    recommendations: riskV2.recommendations.map((recommendation) => ({
+      priority: recommendation.priority,
+      action: recommendation.action,
+      reason: recommendation.reason,
+    })),
+  });
+
   return {
     report,
-    reportHash: hashRiskReport(reportForHash as RiskReport),
+    reportHash,
     riskV2,
   };
 }

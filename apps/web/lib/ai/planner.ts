@@ -1,16 +1,21 @@
 import { createHash } from "node:crypto";
-import { scanTreasury } from "@treasuryos/indexer";
+import { getNativeBalance, scanTreasury } from "@treasuryos/indexer";
 import { buildRiskReportV2 } from "@treasuryos/risk-engine";
 import { runStressScenarios } from "@treasuryos/simulator";
-import { getTokenPrice } from "@treasuryos/indexer";
+import { formatEther, parseEther, type Address } from "viem";
 import type { ExecutionPlan, PlanStep } from "./plan-types";
 import type { TreasurySnapshot } from "@treasuryos/shared";
-import { uniswapV3ExecutionAdapter } from "@/lib/execution/adapters/uniswap-v3";
+import { getExecutionAdapterForStep } from "@/lib/execution/registry";
+import { summarizeSnapshot, tracePipeline } from "@/lib/debug/pipeline-trace";
 
 const STABLE_COINS = new Set(["USDC", "USDT", "DAI"]);
 const ETH_ASSETS = new Set(["ETH", "WETH"]);
 const TARGET_ETH_RATIO = 0.7;
-const MIN_ETH_SWAP_USD = 1;
+const MAX_ETH_SWAP_BPS = 9_500;
+const QUOTE_SEARCH_ITERATIONS = 16;
+const ZERO_WEI = BigInt(0);
+const ONE_WEI = BigInt(1);
+const TWO_WEI = BigInt(2);
 
 function computeSnapshotHash(snapshot: TreasurySnapshot): string {
   const positions = snapshot.positions
@@ -31,6 +36,12 @@ export async function generateExecutionPlan(
   const stressResults = runStressScenarios(snapshot);
   const riskV2 = buildRiskReportV2(snapshot, stressResults);
 
+  tracePipeline("planner-input", {
+    requestedReportHash: reportHash ?? null,
+    snapshot: summarizeSnapshot(snapshot),
+    recommendations: riskV2.recommendations.map((recommendation) => recommendation.action),
+  });
+
   const steps: PlanStep[] = [];
   const warnings: string[] = [];
   let order = 0;
@@ -50,68 +61,14 @@ export async function generateExecutionPlan(
     0;
 
   const totalValue = snapshot.totalValueUsd;
+  const ethRatio = totalValue > 0 ? ethExposureUsd / totalValue : 0;
+  const rebalanceRecommendation = riskV2.recommendations.find((recommendation) => {
+    const action = recommendation.action.toLowerCase();
+    return action.includes("reduce eth exposure") || action.includes("stablecoin");
+  });
 
   for (const rec of riskV2.recommendations) {
     const action = rec.action.toLowerCase();
-
-    if (action.includes("reduce eth exposure") && ethExposureUsd > 0) {
-      const ethRatio = ethExposureUsd / totalValue;
-      const excessEthUsd = totalValue * (ethRatio - TARGET_ETH_RATIO);
-      const swapUsd = Math.min(excessEthUsd, ethExposureUsd * 0.3);
-
-      if (swapUsd >= MIN_ETH_SWAP_USD) {
-        const priceResult = await getTokenPrice("ETH");
-        const ethPrice = priceResult.price;
-        const nativeAmount = ethPrice > 0 ? swapUsd / ethPrice : 0;
-
-        order += 1;
-        const candidate: PlanStep = {
-          order,
-          protocol: "uniswap-v3",
-          action: "swap",
-          fromAsset: "ETH",
-          toAsset: "USDC",
-          amountUsd: swapUsd,
-          amountToken: `${nativeAmount.toFixed(6)} ETH`,
-          reason: rec.reason,
-          traceId: rec.reason.slice(0, 40),
-        };
-        if ((await uniswapV3ExecutionAdapter.discover(snapshot)).length > 0) {
-          candidate.quote = await uniswapV3ExecutionAdapter.quote(candidate);
-          steps.push(candidate);
-        }
-      }
-    }
-
-    if (action.includes("stablecoin") && stableExposureUsd < totalValue * 0.2 && totalValue > 5000) {
-      const targetStableUsd = totalValue * 0.2;
-      const neededStableUsd = targetStableUsd - stableExposureUsd;
-      const availableEthUsd = ethExposureUsd;
-
-      if (neededStableUsd > 100 && availableEthUsd > neededStableUsd) {
-        const priceResult = await getTokenPrice("ETH");
-        const ethPrice = priceResult.price;
-        const nativeAmount = ethPrice > 0 ? neededStableUsd / ethPrice : 0;
-
-        order += 1;
-        const candidate: PlanStep = {
-          order,
-          protocol: "uniswap-v3",
-          action: "swap",
-          fromAsset: "ETH",
-          toAsset: "USDC",
-          amountUsd: neededStableUsd,
-          amountToken: `${nativeAmount.toFixed(6)} ETH`,
-          reason: rec.reason,
-          traceId: rec.reason.slice(0, 40),
-        };
-        if ((await uniswapV3ExecutionAdapter.discover(snapshot)).length > 0) {
-          candidate.quote = await uniswapV3ExecutionAdapter.quote(candidate);
-          steps.push(candidate);
-        }
-      }
-    }
-
     if (action.includes("treasury runway") || action.includes("increase treasury reserves")) {
       warnings.push(
         "Runway improvement requires capital injection or burn reduction — not addressable by onchain swaps alone."
@@ -119,35 +76,22 @@ export async function generateExecutionPlan(
     }
   }
 
-  if (steps.length === 0 && totalValue > 0) {
-    const ethRatio = ethExposureUsd / totalValue;
-    const excessEthUsd = totalValue * (ethRatio - TARGET_ETH_RATIO);
-    const walletEthUsd = walletPositions
-      .filter((p) => p.asset === "ETH")
-      .reduce((sum, p) => sum + p.amountUsd, 0);
-    const swapUsd = Math.min(excessEthUsd, walletEthUsd * 0.3);
+  if (totalValue > 0 && ethRatio > TARGET_ETH_RATIO) {
+    const reason = rebalanceRecommendation?.reason ?? `ETH exposure is ${(ethRatio * 100).toFixed(0)}%, above the ${(TARGET_ETH_RATIO * 100).toFixed(0)}% target.`;
+    const step = await sizeEthRebalanceWithQuotes({
+      address,
+      snapshot,
+      ethExposureUsd,
+      totalValue,
+      order: order + 1,
+      reason,
+    });
 
-    if (swapUsd >= MIN_ETH_SWAP_USD) {
-      const priceResult = await getTokenPrice("ETH");
-      const ethPrice = priceResult.price;
-      const nativeAmount = ethPrice > 0 ? swapUsd / ethPrice : 0;
-
+    if (step) {
       order += 1;
-      const candidate: PlanStep = {
-        order,
-        protocol: "uniswap-v3",
-        action: "swap",
-        fromAsset: "ETH",
-        toAsset: "USDC",
-        amountUsd: swapUsd,
-        amountToken: `${nativeAmount.toFixed(6)} ETH`,
-        reason: `ETH exposure is ${(ethRatio * 100).toFixed(0)}%, above the ${(TARGET_ETH_RATIO * 100).toFixed(0)}% target.`,
-        traceId: "eth-concentration-wallet-swap",
-      };
-      if ((await uniswapV3ExecutionAdapter.discover(snapshot)).length > 0) {
-        candidate.quote = await uniswapV3ExecutionAdapter.quote(candidate);
-        steps.push(candidate);
-      }
+      steps.push(step);
+    } else {
+      warnings.push("No executable ETH → USDC quote can reach the configured allocation target while preserving transaction gas.");
     }
   }
 
@@ -162,7 +106,8 @@ export async function generateExecutionPlan(
       ];
 
   const ethExposureAfterUsd = calculatePostPlanExposure(ethExposureUsd, finalSteps, "fromAsset", "ETH");
-  const stableRatioAfter = calculatePostPlanStableRatio(stableExposureUsd, totalValue, finalSteps, "toAsset", "USDC");
+  const totalValueAfterUsd = calculatePostPlanValue(totalValue, finalSteps);
+  const stableRatioAfter = calculatePostPlanStableRatio(stableExposureUsd, totalValueAfterUsd, finalSteps, "toAsset", "USDC");
 
   const plan: ExecutionPlan = {
     planId: `plan_${Date.now()}_${address.slice(2, 8)}`,
@@ -173,7 +118,7 @@ export async function generateExecutionPlan(
       healthFactorBefore: null,
       healthFactorAfter: null,
       ethExposureBefore: totalValue > 0 ? ethExposureUsd / totalValue : 0,
-      ethExposureAfter: totalValue > 0 ? ethExposureAfterUsd / totalValue : 0,
+      ethExposureAfter: totalValueAfterUsd > 0 ? ethExposureAfterUsd / totalValueAfterUsd : 0,
       stablecoinRatioBefore: totalValue > 0 ? stableExposureUsd / totalValue : 0,
       stablecoinRatioAfter: stableRatioAfter,
     },
@@ -182,7 +127,105 @@ export async function generateExecutionPlan(
     warnings: [...warnings, ...balanceWarnings],
   };
 
+  tracePipeline("planner-output", {
+    basedOnReportHash: plan.basedOnReportHash,
+    steps: plan.steps.map((step) => ({
+      action: step.action,
+      fromAsset: step.fromAsset,
+      toAsset: step.toAsset,
+      amountUsd: step.amountUsd,
+      amountToken: step.amountToken,
+      quoteAmountOutUsd: step.quote?.amountOutUsd,
+      reason: step.reason,
+    })),
+    warnings: plan.warnings,
+  });
+
   return plan;
+}
+
+async function sizeEthRebalanceWithQuotes({
+  address,
+  snapshot,
+  ethExposureUsd,
+  totalValue,
+  order,
+  reason,
+}: {
+  address: string;
+  snapshot: TreasurySnapshot;
+  ethExposureUsd: number;
+  totalValue: number;
+  order: number;
+  reason: string;
+}): Promise<PlanStep | null> {
+  const nativeBalance = await getNativeBalance(address as Address);
+  if (!nativeBalance) return null;
+
+  const nativeBalanceWei = parseEther(nativeBalance.amount);
+  const maximumInputWei = nativeBalanceWei * BigInt(MAX_ETH_SWAP_BPS) / BigInt(10_000);
+  if (maximumInputWei <= ZERO_WEI) return null;
+
+  const makeCandidate = (amountInWei: bigint): PlanStep => ({
+    order,
+    protocol: "uniswap-v3",
+    action: "swap",
+    fromAsset: "ETH",
+    toAsset: "USDC",
+    amountUsd: ethExposureUsd * Number(amountInWei) / Number(nativeBalanceWei),
+    amountToken: `${formatEther(amountInWei)} ETH`,
+    reason,
+    traceId: "eth-concentration-wallet-swap",
+  });
+  const adapter = getExecutionAdapterForStep(makeCandidate(maximumInputWei));
+  if (!adapter || (await adapter.discover(snapshot)).length === 0) return null;
+
+  const reachesTarget = async (amountInWei: bigint) => {
+    const candidate = makeCandidate(amountInWei);
+    const quote = await adapter.quote(candidate);
+    const remainingEthUsd = ethExposureUsd * Number(nativeBalanceWei - amountInWei) / Number(nativeBalanceWei);
+    const quotedTotalUsd = totalValue - (ethExposureUsd - remainingEthUsd) + quote.amountOutUsd;
+    return {
+      candidate,
+      quote,
+      ethRatioAfter: quotedTotalUsd > 0 ? remainingEthUsd / quotedTotalUsd : 0,
+    };
+  };
+
+  let upperResult;
+  try {
+    upperResult = await reachesTarget(maximumInputWei);
+  } catch (error) {
+    tracePipeline("planner-quote-sizing-failed", { address, reason: error instanceof Error ? error.message : "QUOTE_FAILED" });
+    return null;
+  }
+  if (upperResult.ethRatioAfter > TARGET_ETH_RATIO) return null;
+
+  let lowerWei = ONE_WEI;
+  let upperWei = maximumInputWei;
+  let best = upperResult;
+  for (let iteration = 0; iteration < QUOTE_SEARCH_ITERATIONS && lowerWei <= upperWei; iteration += 1) {
+    const middleWei = (lowerWei + upperWei) / TWO_WEI;
+    const result = await reachesTarget(middleWei);
+    if (result.ethRatioAfter <= TARGET_ETH_RATIO) {
+      best = result;
+      upperWei = middleWei - ONE_WEI;
+    } else {
+      lowerWei = middleWei + ONE_WEI;
+    }
+  }
+
+  best.candidate.quote = best.quote;
+  tracePipeline("planner-quote-sizing", {
+    address,
+    targetEthRatio: TARGET_ETH_RATIO,
+    inputEth: best.candidate.amountToken,
+    inputUsd: best.candidate.amountUsd,
+    quotedOutputUsd: best.quote.amountOutUsd,
+    predictedEthRatio: best.ethRatioAfter,
+    quoteAdapter: adapter.id,
+  });
+  return best.candidate;
 }
 
 function deduplicateSteps(steps: PlanStep[]): PlanStep[] {
@@ -306,8 +349,15 @@ function calculatePostPlanStableRatio(
     if (step.action === "repay" && step.asset === assetName) {
       stable -= step.amountUsd || 0;
     } else if (step[toField] === assetName && step.amountUsd) {
-      stable += step.amountUsd;
+      stable += step.quote?.amountOutUsd ?? step.amountUsd;
     }
   }
   return totalValue > 0 ? Math.max(0, stable) / totalValue : 0;
+}
+
+function calculatePostPlanValue(currentValue: number, steps: PlanStep[]): number {
+  return steps.reduce((value, step) => {
+    if (step.action !== "swap") return value;
+    return value - (step.amountUsd ?? 0) + (step.quote?.amountOutUsd ?? step.amountUsd ?? 0);
+  }, currentValue);
 }

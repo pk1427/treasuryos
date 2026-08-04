@@ -3,6 +3,7 @@ import { executionHistoryRepo, executionPlanRepo } from "@/server/repositories";
 import { buildEthToUsdcSwapTransaction } from "@/lib/execution/execute";
 import { persistExecutionHistory } from "@/lib/execution/history";
 import { validateExecutionPreconditions } from "@/lib/execution/validations";
+import { tracePipeline } from "@/lib/debug/pipeline-trace";
 
 export const maxDuration = 60;
 
@@ -55,6 +56,18 @@ export async function POST(request: Request) {
         validated.walletAddress
       );
 
+      tracePipeline("direct-execution-prepared", {
+        planId,
+        reportHash: validated.reportHash,
+        walletAddress: validated.walletAddress,
+        step: validated.step,
+        transaction: {
+          to: transaction.to,
+          value: transaction.value,
+          chainId: transaction.chainId,
+        },
+      });
+
       return NextResponse.json({
         success: true,
         status: "ready",
@@ -81,6 +94,26 @@ export async function POST(request: Request) {
         expectedTransaction,
       });
 
+      tracePipeline("direct-execution-confirmed", {
+        planId,
+        reportHash: validated.reportHash,
+        walletAddress: validated.walletAddress,
+        txHash: body.txHash,
+        status: result.receipt.status,
+        plannedStep: validated.step,
+        actualOutput: result.actualOutput,
+        postExecutionSnapshot: result.postExecutionSnapshot,
+      });
+
+      const postExecutionPositions = result.postExecutionSnapshot?.positions ?? [];
+      const postExecutionTotal = result.postExecutionSnapshot?.totalValueUsd ?? 0;
+      const ethValueUsd = postExecutionPositions
+        .filter((position) => position.protocol === "Wallet" && position.asset === "ETH")
+        .reduce((sum, position) => sum + position.amountUsd, 0);
+      const usdcValueUsd = postExecutionPositions
+        .filter((position) => position.protocol === "Wallet" && position.asset === "USDC")
+        .reduce((sum, position) => sum + position.amountUsd, 0);
+
       return NextResponse.json({
         success: true,
         txHash: body.txHash,
@@ -88,6 +121,16 @@ export async function POST(request: Request) {
         status: result.receipt.status,
         historyId: result.history.id,
         attestation: result.attestation,
+        actualOutput: result.actualOutput,
+        postExecution: result.postExecutionSnapshot
+          ? {
+              totalValueUsd: postExecutionTotal,
+              ethValueUsd,
+              usdcValueUsd,
+              ethAllocation: postExecutionTotal > 0 ? ethValueUsd / postExecutionTotal : 0,
+              usdcAllocation: postExecutionTotal > 0 ? usdcValueUsd / postExecutionTotal : 0,
+            }
+          : null,
       });
     }
 

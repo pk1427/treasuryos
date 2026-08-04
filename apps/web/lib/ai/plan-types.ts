@@ -24,6 +24,7 @@ export type PlanStep = {
     adapterId: string;
     amountIn: string;
     amountOut: string;
+    amountOutUsd: number;
     amountOutMinimum: string;
     slippageBps: number;
     route: string;

@@ -5,12 +5,15 @@ import { Suspense, useEffect, useState } from "react";
 import {
   ExternalLink,
   FileJson,
+  CircleCheck,
+  CircleX,
   Lock,
   Loader2,
   RadioTower,
   ArrowRight,
   Send,
   ShieldCheck,
+  Clock3,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +21,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { shortenHash } from "@/lib/utils";
 import { useWallet } from "@/components/wallet/context";
 import { useTreasurySession } from "@/components/treasury/session-context";
-import { WorkflowStepper } from "@/components/ui/treasury-primitives";
 
 type StepState = "pending" | "running" | "done" | "error";
 type IndexedAttestation = {
@@ -88,14 +90,21 @@ function ProofTrailContent() {
       ? "error"
       : "pending";
 
-  const steps = [
+  const steps: Array<{
+    label: string;
+    description: string;
+    done: boolean;
+    state: StepState;
+  }> = [
     {
       label: "Report",
+      description: reportHash ? "Risk report generated and hashed" : "Waiting for a treasury scan",
       done: Boolean(reportHash),
       state: reportHash ? "done" : "pending" as StepState,
     },
     {
       label: "Simulate",
+      description: simulateState === "done" || executionDone ? "Execution conditions validated" : "Waiting for plan approval",
       done: simulateState === "done" || executionDone,
       state: simulateState === "done"
         ? "done"
@@ -105,11 +114,13 @@ function ProofTrailContent() {
     },
     {
       label: "Execute",
+      description: executionDone ? "Transaction confirmed" : "Waiting for execution",
       done: executionDone,
       state: executionState,
     },
     {
       label: "Publish",
+      description: publishState === "done" || Boolean(effectiveAttestationTxHash) ? "Proof record published" : "Waiting for proof publication",
       done: publishState === "done" || Boolean(effectiveAttestationTxHash),
       state: publishState === "done"
         ? "done"
@@ -119,6 +130,7 @@ function ProofTrailContent() {
     },
     {
       label: "Attest",
+      description: effectiveAttestationTxHash ? "Onchain attestation confirmed" : "Waiting for onchain confirmation",
       done: Boolean(effectiveAttestationTxHash),
       state: Boolean(effectiveAttestationTxHash)
         ? "done"
@@ -128,6 +140,7 @@ function ProofTrailContent() {
     },
     {
       label: "Proof",
+      description: effectiveAttestationTxHash ? "Verification record complete" : "Available after attestation",
       done: Boolean(effectiveAttestationTxHash),
       state: Boolean(effectiveAttestationTxHash) ? "done" : "pending" as StepState,
     },
@@ -200,11 +213,7 @@ function ProofTrailContent() {
                   style={{ width: `${Math.max(overallProgress * 100, 4)}%` }}
                 />
               </div>
-              <WorkflowStepper
-                steps={steps.map((s) => s.label)}
-                activeStep={steps.find((s) => !s.done)?.label}
-                completedThrough={steps.reduce((last, step, index) => step.done ? index : last, -1)}
-              />
+              <VerificationTimeline steps={steps} />
             </section>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -217,7 +226,11 @@ function ProofTrailContent() {
               <MetricCard
                 label="Simulation"
                 value={simulateState === "done" || executionDone ? "Passed" : simulateState === "error" ? "Failed" : "Pending"}
-                detail={simulateState === "done" || executionDone ? "Wallet context OK" : "Waiting"}
+                detail={simulateState === "done" || executionDone
+                  ? session.executionResult?.executionMode === "keeperhub"
+                    ? "KeeperHub validated"
+                    : "Treasury wallet validated"
+                  : "Waiting"}
                 tone={simulateState === "done" || executionDone ? "success" : simulateState === "error" ? "danger" : "neutral"}
               />
               <MetricCard
@@ -293,7 +306,7 @@ function ProofTrailContent() {
                 <CardHeader className="pb-4">
                   <CardTitle className="flex items-center gap-2 text-base">
                     <ShieldCheck className="h-5 w-5 text-cyan-300" />
-                    KeeperHub Simulation
+                    Execution Simulation
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -420,6 +433,48 @@ export default function ProofTrailPage() {
     <Suspense fallback={<div className="min-h-screen bg-zinc-950 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-zinc-500" /></div>}>
       <ProofTrailContent />
     </Suspense>
+  );
+}
+
+function VerificationTimeline({
+  steps,
+}: {
+  steps: Array<{
+    label: string;
+    description: string;
+    state: StepState;
+  }>;
+}) {
+  return (
+    <ol className="grid gap-0 md:grid-cols-6 md:gap-2">
+      {steps.map((step, index) => {
+        const Icon = step.state === "done"
+          ? CircleCheck
+          : step.state === "error"
+            ? CircleX
+            : Clock3;
+        const tone = step.state === "done"
+          ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-200"
+          : step.state === "error"
+            ? "border-red-400/25 bg-red-400/10 text-red-200"
+            : "border-white/10 bg-zinc-950/50 text-zinc-400";
+
+        return (
+          <li key={step.label} className="relative pb-5 last:pb-0 md:pb-0">
+            {index < steps.length - 1 ? (
+              <span className="absolute left-4 top-8 h-[calc(100%-8px)] w-px bg-white/10 md:left-[calc(100%+4px)] md:top-4 md:h-px md:w-[calc(100%-8px)]" />
+            ) : null}
+            <div className={`relative rounded-lg border p-3 ${tone}`}>
+              <div className="flex items-center gap-2">
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="text-xs font-semibold">{step.label}</span>
+              </div>
+              <p className="mt-2 text-xs leading-5 text-zinc-500">{step.description}</p>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 

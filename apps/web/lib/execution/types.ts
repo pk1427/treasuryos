@@ -13,6 +13,7 @@ export type ExecutionQuote = {
   adapterId: string;
   amountIn: string;
   amountOut: string;
+  amountOutUsd: number;
   amountOutMinimum: string;
   slippageBps: number;
   route: string;

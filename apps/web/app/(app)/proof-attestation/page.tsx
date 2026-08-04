@@ -8,9 +8,7 @@ import {
   Clipboard,
   ExternalLink,
   Loader2,
-  Lock,
   RadioTower,
-  ShieldCheck,
   Search,
   Filter,
 } from "lucide-react";
@@ -18,8 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { shortenHash } from "@/lib/utils";
-import { useWallet } from "@/components/wallet/context";
-import { useTreasurySession } from "@/components/treasury/session-context";
 
 type IndexedAttestation = {
   id: string;
@@ -50,18 +46,12 @@ type AttestationsResponse = {
 };
 
 export default function ProofAttestationPage() {
-  const wallet = useWallet();
-  const session = useTreasurySession();
-  const { mode, connectedWallet, isOwnerVerified, isKeeperHubManaged } = session;
-
   const [attestations, setAttestations] = useState<IndexedAttestation[]>([]);
   const [expandedTx, setExpandedTx] = useState<string | null>(null);
   const [state, setState] = useState<"loading" | "done" | "error">("loading");
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-
-  const locked = mode === "analyze" || (!isKeeperHubManaged && (!connectedWallet || !isOwnerVerified));
 
   const filteredAttestations = attestations.filter((attestation) => {
     const matchesSearch =
@@ -144,15 +134,15 @@ export default function ProofAttestationPage() {
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-4">
           <div>
-            <p className="text-sm font-medium text-cyan-100">Need to inspect one execution end-to-end?</p>
-            <p className="mt-1 text-xs text-zinc-400">The proof trail links the report, simulation, attestation, and onchain record.</p>
+            <p className="text-sm font-medium text-cyan-100">Verify an execution end to end.</p>
+            <p className="mt-1 text-xs text-zinc-400">Trace the report, simulation, transaction, and onchain attestation in one place.</p>
           </div>
           <Button asChild variant="secondary" size="sm">
             <a href="/proof-trail">Open Proof Trail</a>
           </Button>
         </div>
 
-        {!locked && state === "done" && (
+        {state === "done" && (
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative flex-1 sm:max-w-sm">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
@@ -180,10 +170,7 @@ export default function ProofAttestationPage() {
           </div>
         )}
 
-        {locked ? (
-          <LockedPanel mode={mode} onConnect={wallet.connect} isKeeperHubManaged={isKeeperHubManaged} />
-        ) : (
-          <>
+        <>
             {error ? (
               <div className="rounded-lg border border-red-900 bg-red-950/30 p-4 text-sm text-red-200">
                 {error}
@@ -239,7 +226,7 @@ export default function ProofAttestationPage() {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
                                   <Badge variant="low" className="normal-case">
-                                    ✓ Attested
+                                    Attested
                                   </Badge>
                                   <span className="text-sm font-medium text-zinc-200">
                                     {entry.status === "Attested Onchain" ? "On-chain Attest" : entry.status}
@@ -291,7 +278,7 @@ export default function ProofAttestationPage() {
                                 <Detail label="Block number" value={entry.blockNumber} />
                                 <Detail label="Network" value={entry.network} />
                                 <Detail label="Timestamp" value={new Date(entry.timestamp).toLocaleString()} />
-                                <Detail label="Status" value="✓ Attested Onchain" />
+                                <Detail label="Status" value="Attested onchain" />
                                 <Detail label="Etherscan" value="View on Etherscan" link={entry.transactionLink} />
                               </div>
                               <div className="mt-3">
@@ -330,7 +317,7 @@ export default function ProofAttestationPage() {
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
                                   <Badge variant="low" className="normal-case">
-                                    ✓ Attested
+                                    Attested
                                   </Badge>
                                   <span className="text-sm text-zinc-300">
                                     {entry.status === "Attested Onchain" ? "On-chain Attest" : entry.status}
@@ -380,7 +367,7 @@ export default function ProofAttestationPage() {
                                   <Detail label="Block number" value={entry.blockNumber} />
                                   <Detail label="Network" value={entry.network} />
                                   <Detail label="Timestamp" value={new Date(entry.timestamp).toLocaleString()} />
-                                  <Detail label="Status" value="✓ Attested Onchain" />
+                                  <Detail label="Status" value="Attested onchain" />
                                   <Detail label="Etherscan" value="View on Etherscan" link={entry.transactionLink} />
                                 </div>
                                 <div className="mt-3">
@@ -400,39 +387,9 @@ export default function ProofAttestationPage() {
                 )}
               </div>
             )}
-          </>
-        )}
+        </>
       </main>
     </div>
-  );
-}
-
-function LockedPanel({ mode, onConnect, isKeeperHubManaged }: { mode: "analyze" | "manage"; onConnect: () => void; isKeeperHubManaged: boolean }) {
-  const copy =
-    mode === "analyze"
-      ? "Proof and attestation remain visible here, but publishing and private proof workflows require Manage mode."
-      : isKeeperHubManaged
-        ? "This treasury is managed by your authenticated KeeperHub organization. Proof and attestation workflows are available without a connected wallet."
-        : "Connect the wallet that owns this treasury to unlock proof and attestation workflows.";
-
-  return (
-    <Card className="rounded-xl border-amber-500/30 bg-amber-500/10">
-      <CardContent className="flex items-start gap-3 p-6">
-        <Lock className="mt-0.5 h-5 w-5 text-amber-300" />
-        <div>
-          <p className="font-medium text-amber-200">Manage mode required</p>
-          <p className="mt-1 text-sm text-zinc-400">
-            {copy}
-          </p>
-          {!isKeeperHubManaged ? (
-            <Button className="mt-3" variant="secondary" size="sm" onClick={onConnect}>
-              <ShieldCheck className="h-4 w-4" />
-              Connect Wallet
-            </Button>
-          ) : null}
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 

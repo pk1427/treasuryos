@@ -1,9 +1,14 @@
-import { createPublicClient, encodePacked, http, keccak256 } from "viem";
+import { createPublicClient, encodePacked, formatUnits, http, keccak256 } from "viem";
 import { sepolia } from "viem/chains";
 import type { PreparedTransaction } from "./types";
 import { publishAttestation } from "@treasuryos/attestation";
 import { executionHistoryRepo } from "@/server/repositories";
 import { indexPublishedAttestationTransaction } from "@/server/services/attestation-indexer-service";
+import { scanTreasury } from "@treasuryos/indexer";
+
+const USDC_ADDRESS = "0x1c7d4b196cb0c7b01d743fbc6116a902379c7238";
+const TRANSFER_EVENT_TOPIC =
+  "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
 const publicClient = createPublicClient({
   chain: sepolia,
@@ -40,6 +45,7 @@ export async function persistExecutionHistory(input: {
     protocol: input.protocol,
     status: receipt.status,
   });
+  const actualOutput = findUsdcTransferToWallet(receipt.logs, input.wallet);
 
   const executionProofHash = keccak256(
     encodePacked(["bytes32", "bytes32"], [input.reportHash, input.txHash])
@@ -48,12 +54,42 @@ export async function persistExecutionHistory(input: {
     wallet: input.wallet,
     executionProofHash,
   });
+  const postExecutionSnapshot = await scanTreasury(input.wallet).catch((error) => {
+    console.warn(
+      "[execution] Post-confirmation treasury scan failed:",
+      error instanceof Error ? error.message : String(error)
+    );
+    return null;
+  });
 
   return {
     history,
     receipt,
+    actualOutput,
+    postExecutionSnapshot,
     attestation: { ...attestation, executionProofHash },
   };
+}
+
+function findUsdcTransferToWallet(
+  logs: Array<{ address: string; topics: readonly `0x${string}`[]; data: `0x${string}` }>,
+  wallet: string
+) {
+  const normalizedWallet = wallet.toLowerCase();
+  const amount = logs.reduce((total, log) => {
+    const recipientTopic = log.topics[2];
+    const recipient = recipientTopic
+      ? `0x${recipientTopic.slice(-40)}`.toLowerCase()
+      : null;
+    const isUsdcTransfer =
+      log.address.toLowerCase() === USDC_ADDRESS &&
+      log.topics[0]?.toLowerCase() === TRANSFER_EVENT_TOPIC &&
+      recipient === normalizedWallet;
+
+    return isUsdcTransfer ? total + BigInt(log.data) : total;
+  }, BigInt(0));
+
+  return amount > 0 ? { asset: "USDC" as const, amount: formatUnits(amount, 6) } : null;
 }
 
 async function publishExecutionAttestation(input: {

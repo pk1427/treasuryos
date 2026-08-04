@@ -33,6 +33,8 @@ export default function ExecutionPage() {
     reportResponse,
     connectedWallet,
     isKeeperHubManaged,
+    executionResult,
+    setExecutionResult,
   } = session;
 
   const report = reportResponse?.report;
@@ -49,23 +51,8 @@ export default function ExecutionPage() {
   const [simulation, setSimulation] = useState<Record<string, unknown> | null>(null);
   const [simulating, setSimulating] = useState(false);
   const [signed, setSigned] = useState(false);
-  const [executionMode, setExecutionMode] = useState<"direct" | "keeperhub">("direct");
-  const [executionResult, setExecutionResult] = useState<{
-    txHash: string;
-    explorer: string;
-    status: string;
-    executionMode?: string;
-    keeperhub?: {
-      executionId: string;
-      transactionHash: string;
-      explorerUrl: string;
-      chainId: number;
-      gasUsed: string;
-      sponsored: boolean;
-      finalStatus: string;
-      executedAt: string;
-    } | null;
-  } | null>(null);
+  const [selectedExecutionMode, setSelectedExecutionMode] = useState<"direct" | "keeperhub">("direct");
+  const executionMode = isKeeperHubManaged ? "keeperhub" : selectedExecutionMode;
   const [activeTab, setActiveTab] = useState<"live" | "history">("live");
   const [executionHistory, setExecutionHistory] = useState<
     Array<{
@@ -81,7 +68,7 @@ export default function ExecutionPage() {
     if (!wallet.address) return;
     fetch(`/api/execute?wallet=${wallet.address}`)
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("History unavailable")))
-      .then(({ history }) => setExecutionHistory(history.map((entry: { createdAt: string; txHash: string; status: string }) => ({ date: new Date(entry.createdAt).toLocaleString(), action: "Swap ETH → USDC", txHash: entry.txHash, explorer: `https://sepolia.etherscan.io/tx/${entry.txHash}`, status: entry.status }))))
+      .then(({ history }) => setExecutionHistory(history.map((entry: { createdAt: string; txHash: string; status: string }) => ({ date: new Date(entry.createdAt).toLocaleString(), action: "Executed plan", txHash: entry.txHash, explorer: `https://sepolia.etherscan.io/tx/${entry.txHash}`, status: entry.status }))))
       .catch(() => undefined);
   }, [wallet.address, executionResult]);
 
@@ -156,7 +143,7 @@ export default function ExecutionPage() {
   }
 
   async function executePlan() {
-    if (!planId) return;
+    if (!planId || !plan) return;
     setActionLoading(true);
     setError(null);
 
@@ -190,7 +177,7 @@ export default function ExecutionPage() {
         setExecutionHistory((history) => [
           {
             date: new Date().toISOString(),
-            action: "Swap ETH → USDC",
+            action: planActionLabel(plan),
             txHash: data.txHash,
             explorer: data.explorerUrl,
             status: data.status,
@@ -237,11 +224,13 @@ export default function ExecutionPage() {
         explorer: completeData.explorer,
         status: completeData.status,
         executionMode: "direct",
+        actualOutput: completeData.actualOutput,
+        postExecution: completeData.postExecution,
       });
       setExecutionHistory((history) => [
-        {
-          date: new Date().toISOString(),
-          action: "Swap ETH → USDC",
+          {
+            date: new Date().toISOString(),
+            action: planActionLabel(plan),
           txHash: completeData.txHash,
           explorer: completeData.explorer,
           status: completeData.status,
@@ -258,7 +247,9 @@ export default function ExecutionPage() {
   const expectedOutcome = plan?.expectedOutcome;
   const ethExposureBefore = expectedOutcome?.ethExposureBefore ?? 0;
   const ethExposureAfter = expectedOutcome?.ethExposureAfter ?? 0;
-  const usdcBalanceBefore = 30;
+  const usdcBalanceBefore = report?.snapshot.positions.find(
+    (position) => position.asset === "USDC"
+  )?.amountUsd ?? 0;
   const usdcBalanceAfter = expectedOutcome
     ? usdcBalanceBefore + (plan.steps.find((s) => s.action === "swap" && s.toAsset === "USDC")?.amountUsd ?? 0)
     : usdcBalanceBefore;
@@ -282,7 +273,7 @@ export default function ExecutionPage() {
               Execution Plan
             </h1>
             <p className="mt-1 text-sm text-zinc-400">
-              Review, simulate, sign, and execute owner-controlled treasury actions.
+              Review a deterministic plan, validate it, and execute through your treasury wallet or KeeperHub.
             </p>
           </div>
         </div>
@@ -303,6 +294,8 @@ export default function ExecutionPage() {
               usdcBalanceAfter={usdcBalanceAfter}
               deltaUsd={deltaUsd}
               deltaEth={deltaEth}
+              actualOutput={executionResult.actualOutput}
+              postExecution={executionResult.postExecution}
             />
             <ProofOfExecution
               txHash={executionResult.txHash}
@@ -359,7 +352,7 @@ export default function ExecutionPage() {
                   <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-cyan-200">
                     {executionMode === "keeperhub"
                       ? "KeeperHub execution workflow"
-                      : "Owner-controlled execution workflow"}
+                      : "Direct execution workflow"}
                   </p>
                   <WorkflowStepper
                     steps={workflowSteps}
@@ -373,8 +366,16 @@ export default function ExecutionPage() {
                   </p>
                 </section>
                 <div className="flex flex-wrap items-center gap-2">
-                  <StatusPill tone="success">Ownership verified</StatusPill>
-                  <StatusPill tone="neutral">Wallet {shortenAddress(wallet.address ?? "")}</StatusPill>
+                  <StatusPill tone="success">
+                    {executionMode === "keeperhub"
+                      ? "KeeperHub treasury verified"
+                      : "Verified Treasury Owner"}
+                  </StatusPill>
+                  <StatusPill tone="neutral">
+                    {executionMode === "keeperhub"
+                      ? "Organization wallet"
+                      : `Wallet ${shortenAddress(wallet.address ?? "")}`}
+                  </StatusPill>
                 </div>
                 <ExecutionTicket
                   plan={plan}
@@ -382,38 +383,41 @@ export default function ExecutionPage() {
                   simulationPassed={Boolean((simulation as { overallSuccess?: boolean } | null)?.overallSuccess)}
                   slippageBps={slippageBps}
                   minReceived={minReceived}
+                  executionMode={executionMode}
                 />
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-zinc-500 uppercase tracking-wide">Execution Mode</span>
                   <div className="flex rounded-lg border border-white/10 bg-zinc-950/50 p-0.5">
                     <button
                       type="button"
+                      disabled={planStatus !== "PLANNED"}
                       className={cn(
                         "rounded-md px-3 py-1.5 text-xs font-medium transition",
                         executionMode === "direct"
                           ? "bg-cyan-400/10 text-cyan-300"
                           : "text-zinc-500 hover:text-zinc-300"
                       )}
-                      onClick={() => setExecutionMode("direct")}
+                      onClick={() => setSelectedExecutionMode("direct")}
                     >
                       Direct Execution
                     </button>
                     <button
                       type="button"
+                      disabled={planStatus !== "PLANNED"}
                       className={cn(
                         "rounded-md px-3 py-1.5 text-xs font-medium transition",
                         executionMode === "keeperhub"
                           ? "bg-violet-400/10 text-violet-300"
                           : "text-zinc-500 hover:text-zinc-300"
                       )}
-                      onClick={() => setExecutionMode("keeperhub")}
+                      onClick={() => setSelectedExecutionMode("keeperhub")}
                     >
                       KeeperHub Execution
                     </button>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  {executionMode === "keeperhub" && planStatus === "SIGNED" && (walletMatches || isKeeperHubManaged) ? (
+                  {executionMode === "keeperhub" && planStatus === "APPROVED" && simulation && canManage ? (
                     <div className="flex items-center gap-2 rounded-lg border border-violet-500/20 bg-violet-500/5 px-3 py-2">
                       <Badge variant="outline" className="normal-case border-violet-400/50 text-violet-200">
                         KeeperHub
@@ -526,11 +530,11 @@ export default function ExecutionPage() {
                     ))}
                   </div>
                 ) : null}
-                {!isConnected ? (
+                  {executionMode === "direct" && !isConnected ? (
                   <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
                     <p className="text-sm text-amber-300">Connect the treasury owner&apos;s wallet to enable actions.</p>
                   </div>
-                ) : !walletMatches ? (
+                  ) : executionMode === "direct" && !walletMatches ? (
                   <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
                     <p className="text-sm text-red-300">Connected wallet does not match the treasury being analyzed.</p>
                   </div>
@@ -587,12 +591,14 @@ function ExecutionTicket({
   simulationPassed,
   slippageBps,
   minReceived,
+  executionMode,
 }: {
   plan: ExecutionPlan;
   planStatus: PlanStatus;
   simulationPassed: boolean;
   slippageBps: number;
   minReceived: number;
+  executionMode: "direct" | "keeperhub";
 }) {
   const swapStep = plan.steps.find((s) => s.action === "swap");
   const primaryStep = plan.steps[0];
@@ -652,11 +658,18 @@ function ExecutionTicket({
         <div>
           <p className="mb-3 text-xs font-medium uppercase text-zinc-500">Preconditions</p>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            <PreconditionCheck label="Wallet owner verified" passed={true} />
+            <PreconditionCheck
+              label={executionMode === "keeperhub" ? "KeeperHub treasury verified" : "Verified treasury owner"}
+              passed={true}
+            />
             <PreconditionCheck label="Report fresh" passed={planStatus !== "STALE"} />
             <PreconditionCheck label="Plan approved" passed={["APPROVED", "SIGNED"].includes(planStatus)} />
             <PreconditionCheck label="Simulation passed" passed={simulationPassed} />
-            <PreconditionCheck label="Plan signed" passed={planStatus === "SIGNED"} />
+            {executionMode === "direct" ? (
+              <PreconditionCheck label="Execution intent signed" passed={planStatus === "SIGNED"} />
+            ) : (
+              <PreconditionCheck label="KeeperHub authorization active" passed={true} />
+            )}
           </div>
         </div>
 
@@ -777,18 +790,50 @@ function ExecutionConfirmation({ result, reportHash }: { result: { txHash: strin
   );
 }
 
-function BeforeAfterPanel({ ethExposureBefore, ethExposureAfter, usdcBalanceBefore, usdcBalanceAfter, deltaUsd, deltaEth }: {
+function BeforeAfterPanel({ ethExposureBefore, ethExposureAfter, usdcBalanceBefore, usdcBalanceAfter, deltaUsd, deltaEth, actualOutput, postExecution }: {
   ethExposureBefore: number;
   ethExposureAfter: number;
   usdcBalanceBefore: number;
   usdcBalanceAfter: number;
   deltaUsd: number;
   deltaEth: number;
+  actualOutput?: { asset: "USDC"; amount: string } | null;
+  postExecution?: {
+    totalValueUsd: number;
+    ethValueUsd: number;
+    usdcValueUsd: number;
+    ethAllocation: number;
+    usdcAllocation: number;
+  } | null;
 }) {
+  if (postExecution) {
+    return (
+      <Card className="rounded-xl bg-zinc-900/70">
+        <CardHeader>
+          <CardTitle className="text-base">Confirmed Onchain Outcome</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="mb-4 text-sm text-zinc-400">
+            Wallet balances were re-scanned after the transaction was mined.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <OutcomeMetric label="ETH Allocation" value={`${(postExecution.ethAllocation * 100).toFixed(1)}%`} />
+            <OutcomeMetric label="USDC Allocation" value={`${(postExecution.usdcAllocation * 100).toFixed(1)}%`} tone="success" />
+            <OutcomeMetric
+              label="USDC Received"
+              value={actualOutput ? `${Number(actualOutput.amount).toLocaleString(undefined, { maximumFractionDigits: 6 })} ${actualOutput.asset}` : "Verified in wallet"}
+              tone="success"
+            />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="rounded-xl bg-zinc-900/70">
       <CardHeader>
-        <CardTitle className="text-base">Before / After</CardTitle>
+        <CardTitle className="text-base">Plan Estimate</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid gap-4 sm:grid-cols-3">
@@ -809,14 +854,33 @@ function BeforeAfterPanel({ ethExposureBefore, ethExposureAfter, usdcBalanceBefo
             </div>
           </div>
           <div className="rounded-lg border border-white/10 bg-zinc-950/50 p-4">
-            <p className="text-xs uppercase text-zinc-500">Delta</p>
+            <p className="text-xs uppercase text-zinc-500">Modelled Change</p>
             <p className="mt-2 font-mono text-sm text-emerald-300">
-              +${deltaUsd.toLocaleString()} USDC / −{deltaEth.toFixed(4)} ETH
+              +${deltaUsd.toLocaleString()} USDC / −{(deltaEth * 100).toFixed(0)} percentage points ETH allocation
             </p>
           </div>
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function OutcomeMetric({
+  label,
+  value,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  tone?: "neutral" | "success";
+}) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-zinc-950/50 p-4">
+      <p className="text-xs uppercase text-zinc-500">{label}</p>
+      <p className={cn("mt-2 font-mono text-sm", tone === "success" ? "text-emerald-300" : "text-zinc-200")}>
+        {value}
+      </p>
+    </div>
   );
 }
 
@@ -925,6 +989,16 @@ function actionLabel(action: PlanStep["action"]): string {
     case "rebalance": return "Rebalance";
     default: return action;
   }
+}
+
+function planActionLabel(plan: ExecutionPlan): string {
+  const primaryStep = plan.steps[0];
+  if (!primaryStep) return "Executed plan";
+
+  const fromAsset = primaryStep.fromAsset ?? primaryStep.asset;
+  return primaryStep.toAsset && fromAsset
+    ? `${actionLabel(primaryStep.action)} ${fromAsset} → ${primaryStep.toAsset}`
+    : `${actionLabel(primaryStep.action)} plan`;
 }
 
 function shortenAddress(address: string) {

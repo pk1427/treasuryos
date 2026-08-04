@@ -3,15 +3,11 @@
 import { useMemo } from "react";
 import {
   BarChart3,
-  Lock,
-  Wallet,
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { StatusPill } from "@/components/ui/treasury-primitives";
-import { useWallet } from "@/components/wallet/context";
 import { useTreasurySession } from "@/components/treasury/session-context";
 import { formatUsd } from "@/lib/utils";
 import type { TreasuryPosition } from "@treasuryos/shared";
@@ -27,26 +23,11 @@ const ALLOCATION_COLORS = [
 ];
 
 export default function PositionsPage() {
-  const wallet = useWallet();
-  const session = useTreasurySession();
-  const {
-    mode,
-    analyzedAddress: address,
-    reportResponse,
-    connectedWallet,
-    isKeeperHubManaged,
-  } = session;
+  const { reportResponse } = useTreasurySession();
 
   const report = reportResponse?.report;
   const positions = useMemo(() => report?.snapshot.positions ?? [], [report?.snapshot.positions]);
   const totalValue = useMemo(() => report?.snapshot.totalValueUsd ?? 0, [report?.snapshot.totalValueUsd]);
-  const ownerVerified =
-    isKeeperHubManaged ||
-    (Boolean(wallet.address && report?.address) &&
-      wallet.address!.toLowerCase() === report!.address.toLowerCase());
-  const locked =
-    mode === "analyze" || (!isKeeperHubManaged && (!connectedWallet || !ownerVerified));
-
   const chartData = useMemo(() => {
     const sorted = [...positions]
       .filter((p) => p.amountUsd > 0)
@@ -98,15 +79,7 @@ export default function PositionsPage() {
       </div>
 
       <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {locked ? (
-          <LockedPanel
-            mode={mode}
-            analyzedAddress={report?.address ?? address}
-            connectedWallet={connectedWallet}
-            onConnect={wallet.connect}
-            isKeeperHubManaged={isKeeperHubManaged}
-          />
-        ) : positions.length === 0 ? (
+        {positions.length === 0 ? (
           <EmptyState />
         ) : (
           <div className="space-y-6">
@@ -380,52 +353,6 @@ function PositionStatus({
   );
 }
 
-function LockedPanel({
-  mode,
-  analyzedAddress,
-  connectedWallet,
-  onConnect,
-  isKeeperHubManaged,
-}: {
-  mode: "analyze" | "manage";
-  analyzedAddress: string;
-  connectedWallet: string | null;
-  onConnect: () => void;
-  isKeeperHubManaged: boolean;
-}) {
-  const mismatch =
-    Boolean(connectedWallet && analyzedAddress) &&
-    connectedWallet!.toLowerCase() !== analyzedAddress.toLowerCase();
-
-  return (
-    <Card className="rounded-xl border-amber-500/30 bg-amber-500/10">
-      <CardContent className="flex items-start gap-3 p-6">
-        <Lock className="mt-0.5 h-5 w-5 text-amber-300" />
-        <div>
-          <p className="font-medium text-amber-200">
-            {mismatch ? "Execution unavailable for this treasury" : "Manage mode required"}
-          </p>
-          <p className="mt-1 text-sm text-zinc-400">
-            {mismatch
-              ? `Connected wallet ${shortenAddress(connectedWallet!)} does not own ${shortenAddress(analyzedAddress)}.`
-              : isKeeperHubManaged
-                ? "This treasury is managed by your authenticated KeeperHub organization. Execution is available without a connected wallet."
-                : mode === "analyze"
-                  ? "Analyze mode is intentionally read-only. Connect the treasury owner wallet to unlock management, execution, and private proof workflows."
-                  : "Connect the wallet that owns this treasury to unlock execution planning; TreasuryOS never takes custody of funds."}
-          </p>
-          {!isKeeperHubManaged && !connectedWallet ? (
-            <Button className="mt-3" variant="secondary" size="sm" onClick={onConnect}>
-              <Wallet className="h-4 w-4" />
-              Connect Wallet
-            </Button>
-          ) : null}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 function EmptyState() {
   return (
     <Card className="rounded-xl border-dashed border-zinc-700">
@@ -475,10 +402,6 @@ function MetricCard({
       {detail ? <p className="mt-1 text-xs text-zinc-400">{detail}</p> : null}
     </div>
   );
-}
-
-function shortenAddress(address: string) {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
 function positionTypeLabel(type: string | undefined): string {

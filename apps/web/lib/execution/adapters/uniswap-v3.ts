@@ -1,7 +1,8 @@
-import { createPublicClient, encodeFunctionData, http, parseEther } from "viem";
+import { createPublicClient, encodeFunctionData, formatUnits, http, parseEther } from "viem";
 import { sepolia } from "viem/chains";
 import type { PlanStep } from "@/lib/ai/plan-types";
 import type { ExecutableAction, ExecutionAdapter, ExecutionQuote } from "../types";
+import { summarizeSnapshot, tracePipeline } from "@/lib/debug/pipeline-trace";
 
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 const FACTORY = "0x0227628f3F023bb0B980b67D528571c95c6DaC1c" as const;
@@ -31,17 +32,40 @@ export const uniswapV3ExecutionAdapter: ExecutionAdapter = {
   id: "uniswap-v3",
   async discover(snapshot) {
     const eth = snapshot.positions.filter((position) => position.protocol === "Wallet" && position.asset === "ETH").reduce((sum, position) => sum + position.amountUsd, 0);
-    if (eth <= 0) return [];
+    if (eth <= 0) {
+      tracePipeline("uniswap-action-discovery", {
+        snapshot: summarizeSnapshot(snapshot),
+        ethExposureUsd: eth,
+        actions: [],
+        reason: "No ETH wallet balance is available for a swap.",
+      });
+      return [];
+    }
     const pool = await client.readContract({ address: FACTORY, abi: factoryAbi, functionName: "getPool", args: [WETH, USDC, FEE] });
-    if (pool.toLowerCase() === ZERO_ADDRESS) return [];
-    return [{ adapterId: "uniswap-v3", action: "swap", fromAsset: "ETH", toAsset: "USDC", availableUsd: eth, label: "Swap ETH to USDC" } satisfies ExecutableAction];
+    if (pool.toLowerCase() === ZERO_ADDRESS) {
+      tracePipeline("uniswap-action-discovery", {
+        snapshot: summarizeSnapshot(snapshot),
+        ethExposureUsd: eth,
+        actions: [],
+        reason: "The configured ETH/USDC pool does not exist.",
+      });
+      return [];
+    }
+    const actions = [{ adapterId: "uniswap-v3", action: "swap", fromAsset: "ETH", toAsset: "USDC", availableUsd: eth, label: "Swap ETH to USDC" } satisfies ExecutableAction];
+    tracePipeline("uniswap-action-discovery", {
+      snapshot: summarizeSnapshot(snapshot),
+      ethExposureUsd: eth,
+      actions,
+      reason: "Any positive ETH balance is currently surfaced as a swap opportunity.",
+    });
+    return actions;
   },
   async quote(step) {
     assertSwap(step);
     const amountIn = inputAmount(step);
     const quoteResponse = await client.simulateContract({ address: QUOTER, abi: quoterAbi, functionName: "quoteExactInputSingle", args: [{ tokenIn: WETH, tokenOut: USDC, amountIn, fee: FEE, sqrtPriceLimitX96: BigInt(0) }] });
     const amountOut = (quoteResponse.result as readonly [bigint, bigint, number, bigint])[0];
-    return { adapterId: "uniswap-v3", amountIn: amountIn.toString(), amountOut: amountOut.toString(), amountOutMinimum: (amountOut * BigInt(10_000 - SLIPPAGE_BPS) / BigInt(10_000)).toString(), slippageBps: SLIPPAGE_BPS, route: `WETH/USDC/${FEE}` } satisfies ExecutionQuote;
+    return { adapterId: "uniswap-v3", amountIn: amountIn.toString(), amountOut: amountOut.toString(), amountOutUsd: Number(formatUnits(amountOut, 6)), amountOutMinimum: (amountOut * BigInt(10_000 - SLIPPAGE_BPS) / BigInt(10_000)).toString(), slippageBps: SLIPPAGE_BPS, route: `WETH/USDC/${FEE}` } satisfies ExecutionQuote;
   },
   buildTransaction(step, walletAddress) {
     assertSwap(step);
