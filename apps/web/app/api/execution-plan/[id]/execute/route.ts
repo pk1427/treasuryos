@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { treasuryService } from "@/server/services/treasury-service";
 import { executionPlanRepo, decisionRepo } from "@/server/repositories";
 import { planStepToActionPlan } from "@/lib/execution/adapters/keeperhub";
+import { persistKeeperHubExecutionHistory } from "@/lib/execution/history";
 import type { ExecutionPlan } from "@/lib/ai/plan-types";
 
 export const maxDuration = 60;
@@ -79,8 +80,32 @@ export async function POST(
         }
       : null;
 
+    const keeperhub = execution.executionMode === "keeperhub" ? {
+      executionId: execution.executionId,
+      transactionHash: execution.txHash,
+      explorerUrl: execution.explorerUrl ?? explorerUrl ?? undefined,
+      chainId: execution.chainId,
+      gasUsed: execution.gasUsed?.toString(),
+      sponsored: execution.sponsored,
+      finalStatus: execution.status,
+      executedAt: new Date().toISOString(),
+    } : null;
+
+    const lifecycle = execution.executionMode === "keeperhub" && execution.status === "confirmed" && execution.txHash
+      ? await persistKeeperHubExecutionHistory({
+          planId: plan.id,
+          wallet: plan.walletAddress,
+          txHash: execution.txHash as `0x${string}`,
+          reportHash: plan.reportHash as `0x${string}`,
+          status: execution.status,
+          gasUsed: execution.gasUsed?.toString(),
+          simulationResult: serializedSimulation ?? undefined,
+          keeperhub: keeperhub ?? {},
+        })
+      : null;
+
     return NextResponse.json({
-      executionId: id,
+      executionId: lifecycle?.history.id ?? id,
       txHash: execution.txHash,
       status: execution.status,
       gasUsed: execution.gasUsed?.toString(),
@@ -88,16 +113,8 @@ export async function POST(
       simulation: serializedSimulation,
       decision: result.decision,
       executionMode: execution.executionMode,
-      keeperhub: execution.executionMode === "keeperhub" ? {
-        executionId: execution.executionId,
-        transactionHash: execution.txHash,
-        explorerUrl: execution.explorerUrl ?? explorerUrl,
-        chainId: execution.chainId,
-        gasUsed: execution.gasUsed?.toString(),
-        sponsored: execution.sponsored,
-        finalStatus: execution.status,
-        executedAt: new Date().toISOString(),
-      } : null,
+      attestation: lifecycle?.attestation ?? null,
+      keeperhub,
     });
   } catch (error) {
     return NextResponse.json(

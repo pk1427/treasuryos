@@ -1,4 +1,4 @@
-import { and, desc, eq, ne, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, ne, or, type SQL } from "drizzle-orm";
 import { requireDb, schema } from "@/lib/db";
 import type { RiskLevel, DecisionStatus, ExecutionStatus } from "@/types";
 
@@ -467,6 +467,12 @@ export class ExecutionHistoryRepository {
     chain: string;
     protocol: string;
     status: string;
+    reportHash?: string;
+    executionMode?: string;
+    executionId?: string;
+    gasUsed?: string;
+    simulationResult?: Record<string, unknown>;
+    keeperhubAudit?: Record<string, unknown>;
   }) {
     const db = requireDb();
     const [entry] = await db
@@ -478,17 +484,58 @@ export class ExecutionHistoryRepository {
         chain: data.chain,
         protocol: data.protocol,
         status: data.status,
+        reportHash: data.reportHash,
+        executionMode: data.executionMode,
+        executionId: data.executionId,
+        gasUsed: data.gasUsed,
+        simulationResult: data.simulationResult,
+        keeperhubAudit: data.keeperhubAudit,
       })
-      .onConflictDoUpdate({
-        target: schema.executionHistory.txHash,
-        set: {
-          status: data.status,
-          protocol: data.protocol,
-          chain: data.chain,
-        },
-      })
+      .onConflictDoNothing()
       .returning();
-    return entry;
+    if (entry) return entry;
+
+    const [existing] = await db
+      .select()
+      .from(schema.executionHistory)
+      .where(eq(schema.executionHistory.txHash, data.txHash.toLowerCase()));
+    if (!existing) throw new Error("Execution history record was not created.");
+    return existing;
+  }
+
+  async attachProof(id: string, data: {
+    attestationTxHash?: string;
+    executionProofHash: string;
+  }) {
+    const db = requireDb();
+    const [entry] = await db
+      .update(schema.executionHistory)
+      .set(data)
+      .where(and(eq(schema.executionHistory.id, id), isNull(schema.executionHistory.executionProofHash)))
+      .returning();
+    if (entry) return entry;
+    return this.findById(id);
+  }
+
+  async findById(id: string) {
+    const db = requireDb();
+    const [entry] = await db
+      .select()
+      .from(schema.executionHistory)
+      .where(eq(schema.executionHistory.id, id));
+    return entry ?? null;
+  }
+
+  async findByTxHash(wallet: string, txHash: string) {
+    const db = requireDb();
+    const [entry] = await db
+      .select()
+      .from(schema.executionHistory)
+      .where(and(
+        eq(schema.executionHistory.wallet, wallet.toLowerCase()),
+        eq(schema.executionHistory.txHash, txHash.toLowerCase())
+      ));
+    return entry ?? null;
   }
 
   async listByWallet(wallet: string) {
@@ -498,6 +545,20 @@ export class ExecutionHistoryRepository {
       .from(schema.executionHistory)
       .where(eq(schema.executionHistory.wallet, wallet.toLowerCase()))
       .orderBy(desc(schema.executionHistory.createdAt));
+  }
+
+  async listProofsByWallet(wallet: string, limit = 3) {
+    const db = requireDb();
+    return db
+      .select()
+      .from(schema.executionHistory)
+      .where(and(
+        eq(schema.executionHistory.wallet, wallet.toLowerCase()),
+        isNotNull(schema.executionHistory.executionProofHash),
+        isNotNull(schema.executionHistory.attestationTxHash)
+      ))
+      .orderBy(desc(schema.executionHistory.createdAt))
+      .limit(limit);
   }
 }
 

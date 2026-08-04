@@ -1,540 +1,151 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import {
-  ExternalLink,
-  FileJson,
-  CircleCheck,
-  CircleX,
-  Lock,
-  Loader2,
-  RadioTower,
-  ArrowRight,
-  Send,
-  ShieldCheck,
-  Clock3,
-} from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { CheckCircle2, Clock3, ExternalLink, FileCheck2, Loader2, RadioTower, Send, ShieldCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { shortenHash } from "@/lib/utils";
-import { useWallet } from "@/components/wallet/context";
 import { useTreasurySession } from "@/components/treasury/session-context";
 
-type StepState = "pending" | "running" | "done" | "error";
-type IndexedAttestation = {
+type ProofRecord = {
   id: string;
-  network: string;
-  treasury: string;
-  reportHash: string;
+  wallet: string;
   txHash: string;
-  timestamp: string;
+  chain: string;
+  protocol: string;
+  status: string;
+  reportHash: string | null;
+  executionMode: string | null;
+  executionId: string | null;
+  gasUsed: string | null;
+  simulationResult: Record<string, unknown> | null;
+  keeperhubAudit: Record<string, unknown> | null;
+  attestationTxHash: string | null;
+  executionProofHash: string | null;
+  createdAt: string;
 };
 
 function ProofTrailContent() {
   const searchParams = useSearchParams();
-  const wallet = useWallet();
-  const session = useTreasurySession();
-  const { mode, connectedWallet, isOwnerVerified, isKeeperHubManaged, reportResponse } = session;
+  const { reportResponse, analyzedAddress } = useTreasurySession();
+  const wallet = reportResponse?.report.address ?? analyzedAddress;
+  const [proofs, setProofs] = useState<ProofRecord[]>([]);
+  const [selected, setSelected] = useState<ProofRecord | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const txParam = searchParams.get("tx") ?? "";
-  const reportParam = searchParams.get("report") ?? "";
-
-  const simulation = session.keeperHubSimulation;
-  const attestation = session.attestation;
-  const simulateState = session.simulateState as StepState;
-  const publishState = session.publishState as StepState;
-  const reportHash = reportParam || reportResponse?.reportHash;
-  const attestationTxHash = txParam || attestation?.transactionHash;
-  const attestationLink = txParam
-    ? `https://sepolia.etherscan.io/tx/${txParam}`
-    : attestation?.transactionLink;
-
-  const locked = mode === "analyze" || (!isKeeperHubManaged && (!connectedWallet || !isOwnerVerified));
-
-  const [historicalAttestation, setHistoricalAttestation] = useState<IndexedAttestation | null>(null);
-  const [historicalLoading, setHistoricalLoading] = useState(false);
-
-  const hasCompletedAttestation = Boolean(attestationTxHash);
-  const effectiveAttestationTxHash = attestationTxHash || historicalAttestation?.txHash;
-  const effectiveAttestationLink = attestationLink || (historicalAttestation ? `https://sepolia.etherscan.io/tx/${historicalAttestation.txHash}` : undefined);
-  const isViewingHistoricalProof = Boolean(effectiveAttestationTxHash) && !session.attestation;
+  const executionId = searchParams.get("execution");
+  const txHash = searchParams.get("tx");
 
   useEffect(() => {
-    if (hasCompletedAttestation || !reportHash || !session.analyzedAddress) return;
-    // Data-fetching effect: load the latest attestation for this treasury from the API.
-    /* eslint-disable react-hooks/set-state-in-effect -- standard data-fetching pattern */
-    setHistoricalLoading(true);
-    setHistoricalAttestation(null);
+    if (!wallet) return;
 
-    fetch(`/api/attestations?treasury=${session.analyzedAddress}&limit=1`)
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error("Failed to load attestations")))
-      .then((data: { items: IndexedAttestation[] }) => {
-        const matching = data.items.find((item) => item.reportHash === reportHash);
-        if (matching) {
-          setHistoricalAttestation(matching);
-        }
+    const query = new URLSearchParams({ wallet });
+    if (executionId) query.set("execution", executionId);
+    if (txHash) query.set("tx", txHash);
+
+    void Promise.resolve().then(() => {
+      setLoading(true);
+      setError(null);
+      return fetch(`/api/proofs?${query.toString()}`);
+    })
+      .then((response) => response.ok ? response.json() : response.json().then((data) => Promise.reject(new Error(data.error ?? "Failed to load proofs"))))
+      .then((data: { proofs: ProofRecord[]; selected: ProofRecord | null }) => {
+        setProofs(data.proofs);
+        setSelected(data.selected);
       })
-      .catch(() => undefined)
-      .finally(() => {
-        setHistoricalLoading(false);
-      });
-    /* eslint-enable react-hooks/set-state-in-effect */
-  }, [hasCompletedAttestation, reportHash, session.analyzedAddress]);
+      .catch((caught: unknown) => {
+        setProofs([]);
+        setSelected(null);
+        setError(caught instanceof Error ? caught.message : "Failed to load proofs");
+      })
+      .finally(() => setLoading(false));
+  }, [executionId, txHash, wallet]);
 
-  const executionDone = Boolean(session.executionResult?.txHash) || Boolean(effectiveAttestationTxHash);
-  const executionState: StepState = executionDone
-    ? "done"
-    : session.executionResult?.status === "failed"
-      ? "error"
-      : "pending";
-
-  const steps: Array<{
-    label: string;
-    description: string;
-    done: boolean;
-    state: StepState;
-  }> = [
-    {
-      label: "Report",
-      description: reportHash ? "Risk report generated and hashed" : "Waiting for a treasury scan",
-      done: Boolean(reportHash),
-      state: reportHash ? "done" : "pending" as StepState,
-    },
-    {
-      label: "Simulate",
-      description: simulateState === "done" || executionDone ? "Execution conditions validated" : "Waiting for plan approval",
-      done: simulateState === "done" || executionDone,
-      state: simulateState === "done"
-        ? "done"
-        : executionDone
-          ? "done"
-          : simulateState,
-    },
-    {
-      label: "Execute",
-      description: executionDone ? "Transaction confirmed" : "Waiting for execution",
-      done: executionDone,
-      state: executionState,
-    },
-    {
-      label: "Publish",
-      description: publishState === "done" || Boolean(effectiveAttestationTxHash) ? "Proof record published" : "Waiting for proof publication",
-      done: publishState === "done" || Boolean(effectiveAttestationTxHash),
-      state: publishState === "done"
-        ? "done"
-        : Boolean(effectiveAttestationTxHash)
-          ? "done"
-          : publishState,
-    },
-    {
-      label: "Attest",
-      description: effectiveAttestationTxHash ? "Onchain attestation confirmed" : "Waiting for onchain confirmation",
-      done: Boolean(effectiveAttestationTxHash),
-      state: Boolean(effectiveAttestationTxHash)
-        ? "done"
-        : publishState === "done" || publishState === "running"
-          ? "running"
-          : "pending" as StepState,
-    },
-    {
-      label: "Proof",
-      description: effectiveAttestationTxHash ? "Verification record complete" : "Available after attestation",
-      done: Boolean(effectiveAttestationTxHash),
-      state: Boolean(effectiveAttestationTxHash) ? "done" : "pending" as StepState,
-    },
-  ];
-
-  const overallProgress = steps.filter((s) => s.done).length / steps.length;
-  const completedSteps = steps.filter((s) => s.done).length;
+  if (!wallet) {
+    return <div className="min-h-screen bg-zinc-950"><main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8"><EmptyState message="Scan a treasury to load its completed execution proofs." /></main></div>;
+  }
+  if (loading) return <LoadingState />;
 
   return (
     <div className="min-h-screen bg-zinc-950">
-      <div className="border-b border-white/10 bg-zinc-950/90">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:px-8">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
-              TreasuryOS — Proof Trail
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold text-white">
-              Proof Trail
-            </h1>
-            <p className="mt-1 text-sm text-zinc-400">
-              {isViewingHistoricalProof
-                ? "Verified proof trail for a completed attestation."
-                : "Full chain from report hash through attestation to on-chain proof."}
-            </p>
-          </div>
+      <header className="border-b border-white/10 bg-zinc-950/90">
+        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
+          <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300">TreasuryOS — Proof Trail</p>
+          <h1 className="mt-1 text-2xl font-semibold text-white">Immutable Execution Proofs</h1>
+          <p className="mt-1 text-sm text-zinc-400">Each record is linked to the report, simulation, execution, attestation, and proof created at completion time.</p>
         </div>
-      </div>
-
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-        {locked ? (
-          <LockedPanel mode={mode} onConnect={wallet.connect} isKeeperHubManaged={isKeeperHubManaged} />
-        ) : !reportHash && !effectiveAttestationTxHash ? (
-          <Card className="rounded-xl border-dashed border-zinc-700">
-            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <div className="mb-4 rounded-xl border border-white/10 bg-zinc-950 p-3">
-                <FileJson className="h-6 w-6 text-zinc-400" />
-              </div>
-              <p className="text-base font-medium text-zinc-200">No proof data available</p>
-              <p className="mt-2 max-w-md text-sm leading-6 text-zinc-500">
-                Generate a report and publish an attestation to populate the proof trail.
-              </p>
-              <Button asChild className="mt-4" variant="secondary">
-                <a href="/dashboard">Scan Treasury</a>
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-6">
-            <section className="rounded-xl border border-white/10 bg-zinc-900/60 p-5">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                    Verification pipeline
-                  </p>
-                  <p className="mt-1 text-sm text-zinc-400">
-                    {completedSteps === steps.length
-                      ? isViewingHistoricalProof
-                        ? "This attestation is fully verified onchain."
-                        : "All stages complete. Proof trail is fully verified."
-                      : `${steps.length - completedSteps} stage${steps.length - completedSteps !== 1 ? "s" : ""} remaining.`}
-                  </p>
-                </div>
-                <Badge variant="outline" className="normal-case">
-                  {completedSteps}/{steps.length} complete
-                </Badge>
-              </div>
-              <div className="mb-4 h-2 overflow-hidden rounded-full bg-zinc-800">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-emerald-500 transition-all duration-500"
-                  style={{ width: `${Math.max(overallProgress * 100, 4)}%` }}
-                />
-              </div>
-              <VerificationTimeline steps={steps} />
-            </section>
-
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <MetricCard
-                label="Report"
-                value={reportHash ? "Generated" : "Pending"}
-                detail={reportHash ? "Hash verified" : "Awaiting scan"}
-                tone={reportHash ? "success" : "neutral"}
-              />
-              <MetricCard
-                label="Simulation"
-                value={simulateState === "done" || executionDone ? "Passed" : simulateState === "error" ? "Failed" : "Pending"}
-                detail={simulateState === "done" || executionDone
-                  ? session.executionResult?.executionMode === "keeperhub"
-                    ? "KeeperHub validated"
-                    : "Treasury wallet validated"
-                  : "Waiting"}
-                tone={simulateState === "done" || executionDone ? "success" : simulateState === "error" ? "danger" : "neutral"}
-              />
-              <MetricCard
-                label="Execution"
-                value={session.executionResult?.txHash ? (session.executionResult.status === "failed" ? "Failed" : "Confirmed") : "Pending"}
-                detail={session.executionResult?.executionMode === "keeperhub" ? "KeeperHub" : session.executionResult?.txHash ? "Direct" : "Awaiting execution"}
-                tone={session.executionResult?.txHash ? (session.executionResult.status === "failed" ? "danger" : "success") : "neutral"}
-              />
-              <MetricCard
-                label="Publish"
-                value={publishState === "done" || Boolean(effectiveAttestationTxHash) ? "Published" : publishState === "error" ? "Failed" : "Pending"}
-                detail={publishState === "done" || Boolean(effectiveAttestationTxHash) ? "KeeperHub confirmed" : "Waiting"}
-                tone={publishState === "done" || Boolean(effectiveAttestationTxHash) ? "success" : publishState === "error" ? "danger" : "neutral"}
-              />
-              <MetricCard
-                label="Attestation"
-                value={effectiveAttestationTxHash ? "Confirmed" : "Pending"}
-                detail={effectiveAttestationTxHash ? "Onchain verified" : "Waiting"}
-                tone={effectiveAttestationTxHash ? "success" : "neutral"}
-              />
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <Card className="rounded-xl bg-zinc-900/70">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <FileJson className="h-5 w-5 text-cyan-300" />
-                    Report Hash
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2">
-                    <p className="min-w-0 flex-1 break-all font-mono text-xs text-zinc-300">
-                      {reportHash ? shortenHash(reportHash) : "Waiting for data"}
-                    </p>
-                    {reportHash ? (
-                      <Button asChild variant="ghost" size="icon" aria-label="Open report hash">
-                        <a href={`/proof-attestation`}>
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </Button>
-                    ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-xl bg-zinc-900/70">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <RadioTower className="h-5 w-5 text-violet-300" />
-                    Attestation Transaction
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-2">
-                    <p className="min-w-0 flex-1 break-all font-mono text-xs text-zinc-300">
-                      {effectiveAttestationTxHash ? shortenHash(effectiveAttestationTxHash) : "Waiting for attestation"}
-                    </p>
-                    {effectiveAttestationTxHash && effectiveAttestationLink ? (
-                      <Button asChild variant="ghost" size="icon" aria-label="View on Etherscan">
-                        <a href={effectiveAttestationLink} target="_blank" rel="noreferrer">
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </Button>
-                    ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Card className="rounded-xl bg-zinc-900/70">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <ShieldCheck className="h-5 w-5 text-cyan-300" />
-                    Execution Simulation
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1">
-                      <p className="text-sm text-zinc-300">
-                        {Boolean(effectiveAttestationTxHash)
-                          ? "Simulation completed prior to attestation."
-                          : historicalLoading
-                            ? "Loading attestation history..."
-                            : simulation?.message ?? simulation?.status ?? "Waiting for simulation data..."}
-                      </p>
-                    </div>
-                    {(simulateState === "done" || Boolean(effectiveAttestationTxHash)) && (
-                      <Badge variant="low" className="normal-case">Passed</Badge>
-                    )}
-                    {simulateState === "error" && (
-                      <Badge variant="critical" className="normal-case">Failed</Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="rounded-xl bg-zinc-900/70">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Send className="h-5 w-5 text-emerald-300" />
-                    Execution
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1">
-                      <p className="text-sm text-zinc-300">
-                        {session.executionResult?.txHash
-                          ? `Transaction ${shortenHash(session.executionResult.txHash)} ${session.executionResult.executionMode === "keeperhub" ? "executed via KeeperHub" : "executed directly"}.`
-                          : "No execution recorded for this session."}
-                      </p>
-                      {session.executionResult?.keeperhub ? (
-                        <div className="mt-2 space-y-1">
-                          <p className="text-xs text-zinc-400">Execution ID: {shortenHash(session.executionResult.keeperhub.executionId)}</p>
-                          <p className="text-xs text-zinc-400">Chain ID: {session.executionResult.keeperhub.chainId}</p>
-                          <p className="text-xs text-zinc-400">Gas Used: {Number(session.executionResult.keeperhub.gasUsed).toLocaleString()}</p>
-                          <p className="text-xs text-zinc-400">Sponsored: {session.executionResult.keeperhub.sponsored ? "Yes" : "No"}</p>
-                        </div>
-                      ) : null}
-                    </div>
-                    {session.executionResult?.txHash && (
-                      <Badge variant={session.executionResult.status === "failed" ? "critical" : "low"} className="normal-case">
-                        {session.executionResult.status}
-                      </Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="rounded-xl bg-zinc-900/70">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <RadioTower className="h-5 w-5 text-violet-300" />
-                    KeeperHub Publish
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-start gap-3">
-                    <div className="flex-1">
-                      <p className="text-sm text-zinc-300">
-                        {Boolean(effectiveAttestationTxHash)
-                          ? "Attestation published and confirmed onchain."
-                          : historicalLoading
-                            ? "Loading attestation history..."
-                            : attestationTxHash
-                              ? "Attestation published"
-                              : attestation?.status ?? "Waiting for attestation..."}
-                      </p>
-                    </div>
-                    {(publishState === "done" || Boolean(effectiveAttestationTxHash)) && (
-                      <Badge variant="low" className="normal-case">Published</Badge>
-                    )}
-                    {publishState === "error" && (
-                      <Badge variant="critical" className="normal-case">Failed</Badge>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card className="rounded-xl border-white/10 bg-zinc-950/50">
-              <CardContent className="p-4">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                      Explorer Links
-                    </p>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      View the attestation and proof records on Sepolia.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {effectiveAttestationTxHash ? (
-                      <Button asChild variant="secondary" size="sm">
-                        <a href={effectiveAttestationLink ?? `https://sepolia.etherscan.io/tx/${effectiveAttestationTxHash}`} target="_blank" rel="noreferrer">
-                          Attestation on Etherscan
-                          <ArrowRight className="h-4 w-4" />
-                        </a>
-                      </Button>
-                    ) : null}
-                    {reportHash && (
-                      <Button asChild variant="outline" size="sm">
-                        <a href={`/proof-attestation`}>View Attestation History</a>
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
+      </header>
+      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+        {error ? <ErrorState error={error} /> : null}
+        {!selected && !error ? <EmptyState message="No completed proof records exist for this treasury." /> : null}
+        {selected ? <ProofDetails proof={selected} proofs={proofs} /> : null}
       </main>
     </div>
   );
 }
 
-export default function ProofTrailPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-zinc-950 flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-zinc-500" /></div>}>
-      <ProofTrailContent />
-    </Suspense>
-  );
-}
-
-function VerificationTimeline({
-  steps,
-}: {
-  steps: Array<{
-    label: string;
-    description: string;
-    state: StepState;
-  }>;
-}) {
-  return (
-    <ol className="grid gap-0 md:grid-cols-6 md:gap-2">
-      {steps.map((step, index) => {
-        const Icon = step.state === "done"
-          ? CircleCheck
-          : step.state === "error"
-            ? CircleX
-            : Clock3;
-        const tone = step.state === "done"
-          ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-200"
-          : step.state === "error"
-            ? "border-red-400/25 bg-red-400/10 text-red-200"
-            : "border-white/10 bg-zinc-950/50 text-zinc-400";
-
-        return (
-          <li key={step.label} className="relative pb-5 last:pb-0 md:pb-0">
-            {index < steps.length - 1 ? (
-              <span className="absolute left-4 top-8 h-[calc(100%-8px)] w-px bg-white/10 md:left-[calc(100%+4px)] md:top-4 md:h-px md:w-[calc(100%-8px)]" />
-            ) : null}
-            <div className={`relative rounded-lg border p-3 ${tone}`}>
-              <div className="flex items-center gap-2">
-                <Icon className="h-4 w-4 shrink-0" />
-                <span className="text-xs font-semibold">{step.label}</span>
-              </div>
-              <p className="mt-2 text-xs leading-5 text-zinc-500">{step.description}</p>
-            </div>
-          </li>
-        );
-      })}
-    </ol>
-  );
-}
-
-function LockedPanel({ mode, onConnect, isKeeperHubManaged }: { mode: "analyze" | "manage"; onConnect: () => void; isKeeperHubManaged: boolean }) {
-  const copy =
-    mode === "analyze"
-      ? "The proof trail is visible as a locked workflow in Analyze mode. Switch to Manage with the owner wallet to publish or verify private execution proofs."
-      : isKeeperHubManaged
-        ? "This treasury is managed by your authenticated KeeperHub organization. Execution and proof workflows are available without a connected wallet."
-        : "Connect the wallet that owns this treasury to view the proof trail.";
+function ProofDetails({ proof, proofs }: { proof: ProofRecord; proofs: ProofRecord[] }) {
+  const keeperHub = proof.executionMode === "keeperhub";
+  const stages = [
+    { label: "Report", detail: proof.reportHash ? "Report hash preserved" : "Legacy record", done: Boolean(proof.reportHash) },
+    { label: "Simulation", detail: proof.simulationResult ? "Simulation preserved" : "Simulation unavailable", done: Boolean(proof.simulationResult) },
+    { label: "Execution", detail: `${keeperHub ? "KeeperHub" : "Direct"} transaction confirmed`, done: Boolean(proof.txHash) },
+    ...(keeperHub ? [{ label: "KeeperHub Audit", detail: proof.keeperhubAudit ? "Audit preserved" : "Audit unavailable", done: Boolean(proof.keeperhubAudit) }] : []),
+    { label: "Attestation", detail: proof.attestationTxHash ? "Onchain attestation confirmed" : "Attestation unavailable", done: Boolean(proof.attestationTxHash) },
+    { label: "Proof", detail: proof.executionProofHash ? "Immutable proof record complete" : "Proof unavailable", done: Boolean(proof.executionProofHash) },
+  ];
 
   return (
-    <Card className="rounded-xl border-amber-500/30 bg-amber-500/10">
-      <CardContent className="flex items-start gap-3 p-6">
-        <Lock className="mt-0.5 h-5 w-5 text-amber-300" />
-        <div>
-          <p className="font-medium text-amber-200">Manage mode required</p>
-          <p className="mt-1 text-sm text-zinc-400">
-            {copy}
-          </p>
-          {!isKeeperHubManaged ? (
-            <Button className="mt-3" variant="secondary" size="sm" onClick={onConnect}>
-              <ShieldCheck className="h-4 w-4" />
-              Connect Wallet
-            </Button>
-          ) : null}
+    <div className="space-y-6">
+      <Card className="rounded-xl border-emerald-400/20 bg-emerald-400/5">
+        <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2"><CheckCircle2 className="h-5 w-5 text-emerald-300" /><p className="font-medium text-emerald-100">Completed proof record</p></div>
+            <p className="mt-1 text-sm text-zinc-400">Created {new Date(proof.createdAt).toLocaleString()} · {keeperHub ? "KeeperHub execution" : "Direct execution"}</p>
+          </div>
+          <Badge variant="low" className="w-fit normal-case">{proof.status}</Badge>
+        </CardContent>
+      </Card>
+
+      <section className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+        {stages.map((stage) => <StageCard key={stage.label} {...stage} />)}
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <ProofField icon={FileCheck2} label="Report Hash" value={proof.reportHash} />
+          <ProofField icon={Send} label="Execution Transaction" value={proof.txHash} explorer />
+          <ProofField icon={RadioTower} label="Attestation Transaction" value={proof.attestationTxHash} explorer />
+          <ProofField icon={ShieldCheck} label="Execution Proof" value={proof.executionProofHash} />
+          <ProofField icon={Clock3} label="Execution ID" value={proof.executionId ?? proof.id} />
+          <ProofField icon={Clock3} label="Gas Used" value={proof.gasUsed ? Number(proof.gasUsed).toLocaleString() : "Unavailable"} />
+          <ProofField icon={ShieldCheck} label="Simulation" value={proof.simulationResult ? "Completed and preserved" : "Unavailable"} />
+          <ProofField icon={ShieldCheck} label="KeeperHub Audit" value={keeperHub ? proof.keeperhubAudit ? "Completed and preserved" : "Unavailable" : "Not applicable"} />
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  detail,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  detail?: string;
-  tone?: "neutral" | "info" | "success" | "warning" | "danger";
-}) {
-  const toneClasses = {
-    neutral: "border-white/10 bg-white/[0.04] text-zinc-300",
-    info: "border-cyan-400/25 bg-cyan-400/10 text-cyan-200",
-    success: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
-    warning: "border-amber-400/25 bg-amber-400/10 text-amber-200",
-    danger: "border-red-400/25 bg-red-400/10 text-red-200",
-  };
-
-  return (
-    <div className={`rounded-xl border p-4 ${toneClasses[tone]}`}>
-      <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-        {label}
-      </p>
-      <p className="mt-2 font-mono text-xl font-semibold tabular-nums text-zinc-100">
-        {value}
-      </p>
-      {detail ? <p className="mt-1 text-xs text-zinc-400">{detail}</p> : null}
+        <RecentProofs proofs={proofs} selectedId={proof.id} />
+      </div>
     </div>
   );
 }
+
+function StageCard({ label, detail, done }: { label: string; detail: string; done: boolean }) {
+  return <Card className={`rounded-xl ${done ? "border-emerald-400/20 bg-emerald-400/5" : "border-white/10 bg-zinc-900/70"}`}><CardContent className="p-4"><div className="flex items-center gap-2"><CheckCircle2 className={`h-4 w-4 ${done ? "text-emerald-300" : "text-zinc-600"}`} /><p className="text-sm font-medium text-zinc-200">{label}</p></div><p className="mt-2 text-xs leading-5 text-zinc-500">{detail}</p></CardContent></Card>;
+}
+
+function ProofField({ icon: Icon, label, value, explorer = false }: { icon: typeof FileCheck2; label: string; value: string | null; explorer?: boolean }) {
+  const link = explorer && value ? `https://sepolia.etherscan.io/tx/${value}` : null;
+  return <Card className="rounded-xl bg-zinc-900/70"><CardHeader className="pb-2"><CardTitle className="flex items-center gap-2 text-sm"><Icon className="h-4 w-4 text-cyan-300" />{label}</CardTitle></CardHeader><CardContent className="flex items-center gap-2"><p className="min-w-0 flex-1 break-all font-mono text-xs text-zinc-300">{value?.startsWith("0x") ? shortenHash(value) : value ?? "Unavailable"}</p>{link ? <Button asChild variant="ghost" size="icon" aria-label={`Open ${label} on Etherscan`}><a href={link} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /></a></Button> : null}</CardContent></Card>;
+}
+
+function RecentProofs({ proofs, selectedId }: { proofs: ProofRecord[]; selectedId: string }) {
+  return <Card className="h-fit rounded-xl bg-zinc-900/70"><CardHeader><CardTitle className="text-base">Recent Proofs</CardTitle></CardHeader><CardContent className="space-y-2">{proofs.length === 0 ? <p className="text-sm text-zinc-500">No additional proofs.</p> : proofs.map((proof) => <Button key={proof.id} asChild variant={proof.id === selectedId ? "secondary" : "ghost"} className="h-auto w-full justify-start px-3 py-2 text-left"><a href={`/proof-trail?execution=${proof.id}`}><span className="block font-mono text-xs">{shortenHash(proof.txHash)}</span><span className="mt-1 block text-xs text-zinc-500">{new Date(proof.createdAt).toLocaleString()}</span></a></Button>)}</CardContent></Card>;
+}
+
+function LoadingState() { return <div className="flex min-h-screen items-center justify-center bg-zinc-950"><Loader2 className="h-7 w-7 animate-spin text-zinc-500" /></div>; }
+function EmptyState({ message }: { message: string }) { return <Card className="rounded-xl border-dashed border-zinc-700"><CardContent className="py-16 text-center text-sm text-zinc-500">{message}</CardContent></Card>; }
+function ErrorState({ error }: { error: string }) { return <Card className="rounded-xl border-red-500/30 bg-red-500/10"><CardContent className="p-4 text-sm text-red-200">{error}</CardContent></Card>; }
+
+export default function ProofTrailPage() { return <Suspense fallback={<LoadingState />}><ProofTrailContent /></Suspense>; }

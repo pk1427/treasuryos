@@ -6,6 +6,8 @@ import type {
 
 const KEEPERHUB_API_URL =
   process.env.KEEPERHUB_API_URL ?? "https://app.keeperhub.com";
+const KEEPERHUB_POLL_ATTEMPTS = 30;
+const KEEPERHUB_POLL_INTERVAL_MS = 1_000;
 
 async function keeperhubRequest(
   endpoint: string,
@@ -197,26 +199,27 @@ export async function execute(
   }, apiKey);
 
   if (result.ok && (result.status === 200 || result.status === 202)) {
-    const data = result.data as {
-      executionId?: string;
-      status?: string;
-      transactionHash?: string;
-      gasUsed?: string;
-      transactionLink?: string;
-      sponsored?: boolean;
-      result?: { chainId?: string | number };
-    };
-
-    const chainId = typeof data.result?.chainId === "string" ? parseInt(data.result.chainId, 10) : (data.result?.chainId as number | undefined);
+    const data = result.data as KeeperHubExecutionStatus;
+    const finalResult = !data.transactionHash && data.executionId
+      ? await pollExecutionStatus(data.executionId, apiKey, data)
+      : data;
+    const chainId = typeof finalResult.result?.chainId === "string"
+      ? parseInt(finalResult.result.chainId, 10)
+      : finalResult.result?.chainId;
+    const status = finalResult.status === "failed"
+      ? "failed"
+      : finalResult.transactionHash && (finalResult.status === "completed" || finalResult.status === "confirmed")
+        ? "confirmed"
+        : "pending";
 
     return {
-      executionId: data.executionId,
-      txHash: data.transactionHash ?? "",
-      status: (data.status === "completed" ? "confirmed" : (data.status ?? "confirmed")) as ExecutionResult["status"],
-      gasUsed: data.gasUsed ? BigInt(data.gasUsed) : simulation.gasEstimate,
-      explorerUrl: data.transactionLink,
+      executionId: finalResult.executionId ?? data.executionId,
+      txHash: finalResult.transactionHash ?? "",
+      status,
+      gasUsed: finalResult.gasUsed ? BigInt(finalResult.gasUsed) : simulation.gasEstimate,
+      explorerUrl: finalResult.transactionLink,
       chainId,
-      sponsored: data.sponsored ?? false,
+      sponsored: finalResult.sponsored ?? false,
       executionMode: "keeperhub" as const,
     };
   }
@@ -230,4 +233,42 @@ export async function execute(
     status: "failed",
     gasUsed: simulation.gasEstimate,
   };
+}
+
+type KeeperHubExecutionStatus = {
+  executionId?: string;
+  status?: string;
+  transactionHash?: string;
+  gasUsed?: string;
+  transactionLink?: string;
+  sponsored?: boolean;
+  result?: { chainId?: string | number };
+};
+
+async function pollExecutionStatus(
+  executionId: string,
+  apiKey: string,
+  initial: KeeperHubExecutionStatus
+): Promise<KeeperHubExecutionStatus> {
+  let latest = initial;
+
+  for (let attempt = 0; attempt < KEEPERHUB_POLL_ATTEMPTS; attempt += 1) {
+    const response = await fetch(`${KEEPERHUB_API_URL}/api/execute/${executionId}/status`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    const data = await response.json().catch(() => ({})) as KeeperHubExecutionStatus;
+    if (!response.ok) {
+      throw new Error(`KeeperHub status request failed with HTTP ${response.status}.`);
+    }
+
+    latest = { ...latest, ...data, executionId };
+    if (latest.status === "failed" || latest.transactionHash) return latest;
+    await delay(KEEPERHUB_POLL_INTERVAL_MS);
+  }
+
+  return latest;
+}
+
+function delay(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }

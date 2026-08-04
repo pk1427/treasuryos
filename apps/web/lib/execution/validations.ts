@@ -15,6 +15,7 @@ export type ValidatedExecutionPlan = {
   walletAddress: string;
   reportHash: string;
   step: PlanStep;
+  simulationResult: Record<string, unknown>;
 };
 
 export async function validateExecutionPreconditions(
@@ -63,17 +64,18 @@ export async function validateExecutionPreconditions(
     walletAddress: plan.walletAddress,
     reportHash: plan.reportHash,
     step,
+    simulationResult: simulation,
   };
 }
 
-function parseSimulation(value: unknown): { overallSuccess?: boolean } | null {
+function parseSimulation(value: unknown): (Record<string, unknown> & { overallSuccess?: boolean }) | null {
   if (!value) return null;
   if (typeof value === "string") {
     try {
-      return JSON.parse(value) as { overallSuccess?: boolean };
+      return JSON.parse(value) as Record<string, unknown> & { overallSuccess?: boolean };
     } catch {
       return null;
     }
   }
-  return value as { overallSuccess?: boolean };
+  return value as Record<string, unknown> & { overallSuccess?: boolean };
 }

@@ -57,20 +57,24 @@ export default function ExecutionPage() {
   const [executionHistory, setExecutionHistory] = useState<
     Array<{
       date: string;
-      action: string;
       txHash: string;
       explorer: string;
       status: string;
+      executionMode: string | null;
+      reportHash: string | null;
+      executionId: string;
+      gasUsed: string | null;
     }>
   >([]);
 
   useEffect(() => {
-    if (!wallet.address) return;
-    fetch(`/api/execute?wallet=${wallet.address}`)
+    const historyWallet = report?.address ?? wallet.address;
+    if (!historyWallet) return;
+    fetch(`/api/execute?wallet=${historyWallet}`)
       .then((response) => response.ok ? response.json() : Promise.reject(new Error("History unavailable")))
-      .then(({ history }) => setExecutionHistory(history.map((entry: { createdAt: string; txHash: string; status: string }) => ({ date: new Date(entry.createdAt).toLocaleString(), action: "Executed plan", txHash: entry.txHash, explorer: `https://sepolia.etherscan.io/tx/${entry.txHash}`, status: entry.status }))))
+      .then(({ history }) => setExecutionHistory(history.map((entry: { id: string; executionId: string | null; createdAt: string; txHash: string; status: string; executionMode: string | null; reportHash: string | null; gasUsed: string | null }) => ({ date: new Date(entry.createdAt).toLocaleString(), txHash: entry.txHash, explorer: `https://sepolia.etherscan.io/tx/${entry.txHash}`, status: entry.status, executionMode: entry.executionMode, reportHash: entry.reportHash, executionId: entry.executionId ?? entry.id, gasUsed: entry.gasUsed }))))
       .catch(() => undefined);
-  }, [wallet.address, executionResult]);
+  }, [wallet.address, report?.address, executionResult]);
 
   const locked =
     mode === "analyze" || (!isKeeperHubManaged && (!connectedWallet || !ownerVerified));
@@ -174,16 +178,6 @@ export default function ExecutionPage() {
           executionMode: data.executionMode,
           keeperhub: data.keeperhub,
         });
-        setExecutionHistory((history) => [
-          {
-            date: new Date().toISOString(),
-            action: planActionLabel(plan),
-            txHash: data.txHash,
-            explorer: data.explorerUrl,
-            status: data.status,
-          },
-          ...history,
-        ]);
         return;
       }
 
@@ -227,16 +221,6 @@ export default function ExecutionPage() {
         actualOutput: completeData.actualOutput,
         postExecution: completeData.postExecution,
       });
-      setExecutionHistory((history) => [
-          {
-            date: new Date().toISOString(),
-            action: planActionLabel(plan),
-          txHash: completeData.txHash,
-          explorer: completeData.explorer,
-          status: completeData.status,
-        },
-        ...history,
-      ]);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Execution failed");
     } finally {
@@ -747,23 +731,24 @@ function MismatchedWalletPanel({ connectedWallet, analyzedAddress }: { connected
 }
 
 function ExecutionConfirmation({ result, reportHash }: { result: { txHash: string; explorer: string; status: string }; reportHash?: string }) {
+  const confirmed = result.status === "confirmed" || result.status === "success";
   return (
-    <Card className="rounded-2xl border-emerald-500/30 bg-emerald-500/10">
+    <Card className={`rounded-2xl ${confirmed ? "border-emerald-500/30 bg-emerald-500/10" : "border-amber-500/30 bg-amber-500/10"}`}>
       <CardContent className="p-6">
         <div className="flex items-center gap-3 mb-4">
-          <CheckCircle2 className="h-6 w-6 text-emerald-400" />
-          <h2 className="text-xl font-semibold text-emerald-200">Execution Complete</h2>
+          {confirmed ? <CheckCircle2 className="h-6 w-6 text-emerald-400" /> : <Loader2 className="h-6 w-6 animate-spin text-amber-300" />}
+          <h2 className={`text-xl font-semibold ${confirmed ? "text-emerald-200" : "text-amber-200"}`}>{confirmed ? "Execution Complete" : "KeeperHub Execution Pending"}</h2>
         </div>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-sm text-zinc-400">Transaction</span>
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs text-zinc-300">{shortenHash(result.txHash)}</span>
-              <Button asChild variant="ghost" size="icon" aria-label="View on Etherscan">
+              <span className="font-mono text-xs text-zinc-300">{result.txHash ? shortenHash(result.txHash) : "Awaiting onchain transaction"}</span>
+              {result.txHash ? <Button asChild variant="ghost" size="icon" aria-label="View on Etherscan">
                 <a href={result.explorer} target="_blank" rel="noreferrer">
                   <ExternalLink className="h-4 w-4" />
                 </a>
-              </Button>
+              </Button> : null}
             </div>
           </div>
           <div className="flex items-center justify-between">
@@ -778,9 +763,9 @@ function ExecutionConfirmation({ result, reportHash }: { result: { txHash: strin
           ) : null}
         </div>
         <div className="mt-4 flex flex-wrap gap-3">
-          <Button asChild variant="secondary" size="sm">
+          {confirmed ? <Button asChild variant="secondary" size="sm">
             <a href="/proof-trail">View Proof Trail <ArrowRight className="h-4 w-4" /></a>
-          </Button>
+          </Button> : null}
           <Button asChild variant="outline" size="sm">
             <a href="/proof-attestation">View Attestations</a>
           </Button>
@@ -1010,10 +995,13 @@ function ExecutionHistory({
 }: {
   history: Array<{
     date: string;
-    action: string;
     txHash: string;
     explorer: string;
     status: string;
+    executionMode: string | null;
+    reportHash: string | null;
+    executionId: string;
+    gasUsed: string | null;
   }>;
 }) {
   if (history.length === 0) {
@@ -1031,12 +1019,15 @@ function ExecutionHistory({
     <Card className="rounded-xl bg-zinc-900/70">
       <CardContent className="p-0">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[1100px] text-left text-sm">
             <thead className="border-b border-white/10 text-xs uppercase text-zinc-500">
               <tr>
                 <th className="px-4 py-3 font-medium">Date</th>
-                <th className="px-4 py-3 font-medium">Action</th>
+                <th className="px-4 py-3 font-medium">Mode</th>
                 <th className="px-4 py-3 font-medium">Tx Hash</th>
+                <th className="px-4 py-3 font-medium">Report Hash</th>
+                <th className="px-4 py-3 font-medium">Execution ID</th>
+                <th className="px-4 py-3 font-medium">Gas Used</th>
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Proof</th>
               </tr>
@@ -1045,10 +1036,13 @@ function ExecutionHistory({
               {history.map((entry) => (
                 <tr key={entry.txHash} className="bg-zinc-950/40">
                   <td className="px-4 py-3 text-zinc-300">{entry.date}</td>
-                  <td className="px-4 py-3 text-zinc-200">{entry.action}</td>
+                  <td className="px-4 py-3 text-zinc-200">{entry.executionMode === "keeperhub" ? "KeeperHub" : "Direct"}</td>
                   <td className="px-4 py-3">
                     <span className="font-mono text-xs text-zinc-300">{shortenHash(entry.txHash)}</span>
                   </td>
+                  <td className="px-4 py-3 font-mono text-xs text-zinc-300">{entry.reportHash ? shortenHash(entry.reportHash) : "Legacy"}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-zinc-300">{shortenHash(entry.executionId)}</td>
+                  <td className="px-4 py-3 font-mono text-xs text-zinc-300">{entry.gasUsed ? Number(entry.gasUsed).toLocaleString() : "—"}</td>
                   <td className="px-4 py-3">
                     <Badge variant="low" className="normal-case">{entry.status}</Badge>
                   </td>

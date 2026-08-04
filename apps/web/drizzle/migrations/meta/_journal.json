@@ -43,6 +43,13 @@
       "when": 1785765790009,
       "tag": "0005_next_lake",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785765800000,
+      "tag": "0006_execution_lifecycle",
+      "breakpoints": true
     }
   ]
 }

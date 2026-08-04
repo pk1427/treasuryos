@@ -22,6 +22,7 @@ export async function persistExecutionHistory(input: {
   protocol: string;
   reportHash: `0x${string}`;
   expectedTransaction: PreparedTransaction;
+  simulationResult: Record<string, unknown>;
 }) {
   const chainId = await publicClient.getChainId();
   if (chainId !== sepolia.id) throw new Error("Execution receipt was not verified on Sepolia.");
@@ -44,16 +45,12 @@ export async function persistExecutionHistory(input: {
     chain: "sepolia",
     protocol: input.protocol,
     status: receipt.status,
+    reportHash: input.reportHash,
+    executionMode: "direct",
+    gasUsed: receipt.gasUsed.toString(),
+    simulationResult: input.simulationResult,
   });
   const actualOutput = findUsdcTransferToWallet(receipt.logs, input.wallet);
-
-  const executionProofHash = keccak256(
-    encodePacked(["bytes32", "bytes32"], [input.reportHash, input.txHash])
-  );
-  const attestation = await publishExecutionAttestation({
-    wallet: input.wallet,
-    executionProofHash,
-  });
   const postExecutionSnapshot = await scanTreasury(input.wallet).catch((error) => {
     console.warn(
       "[execution] Post-confirmation treasury scan failed:",
@@ -62,12 +59,104 @@ export async function persistExecutionHistory(input: {
     return null;
   });
 
+  if (history.executionProofHash) {
+    return {
+      history,
+      receipt,
+      actualOutput,
+      postExecutionSnapshot,
+      attestation: storedAttestation(history),
+    };
+  }
+
+  const executionProofHash = keccak256(
+    encodePacked(["bytes32", "bytes32"], [input.reportHash, input.txHash])
+  );
+  const attestation = await publishExecutionAttestation({
+    wallet: input.wallet,
+    executionProofHash,
+  });
+  const persistedHistory = await executionHistoryRepo.attachProof(history.id, {
+    attestationTxHash: attestation.transactionHash,
+    executionProofHash,
+  });
+
   return {
-    history,
+    history: persistedHistory ?? history,
     receipt,
     actualOutput,
     postExecutionSnapshot,
-    attestation: { ...attestation, executionProofHash },
+    attestation: persistedHistory?.executionProofHash && persistedHistory.executionProofHash !== executionProofHash
+      ? storedAttestation(persistedHistory)
+      : { ...attestation, executionProofHash },
+  };
+}
+
+export async function persistKeeperHubExecutionHistory(input: {
+  planId: string;
+  wallet: string;
+  txHash: `0x${string}`;
+  reportHash: `0x${string}`;
+  status: string;
+  gasUsed?: string;
+  simulationResult?: Record<string, unknown>;
+  keeperhub: {
+    executionId?: string;
+    transactionHash?: string;
+    explorerUrl?: string;
+    chainId?: number;
+    gasUsed?: string;
+    sponsored?: boolean;
+    finalStatus?: string;
+    executedAt?: string;
+  };
+}) {
+  const history = await executionHistoryRepo.create({
+    planId: input.planId,
+    wallet: input.wallet,
+    txHash: input.txHash,
+    chain: "sepolia",
+    protocol: "uniswap-v3",
+    status: input.status,
+    reportHash: input.reportHash,
+    executionMode: "keeperhub",
+    executionId: input.keeperhub.executionId,
+    gasUsed: input.gasUsed,
+    simulationResult: input.simulationResult,
+    keeperhubAudit: input.keeperhub,
+  });
+  if (history.executionProofHash) {
+    return { history, attestation: storedAttestation(history) };
+  }
+  const executionProofHash = keccak256(
+    encodePacked(["bytes32", "bytes32"], [input.reportHash, input.txHash])
+  );
+  const attestation = await publishExecutionAttestation({
+    wallet: input.wallet,
+    executionProofHash,
+  });
+  const persistedHistory = await executionHistoryRepo.attachProof(history.id, {
+    attestationTxHash: attestation.transactionHash,
+    executionProofHash,
+  });
+  return {
+    history: persistedHistory ?? history,
+    attestation: persistedHistory?.executionProofHash && persistedHistory.executionProofHash !== executionProofHash
+      ? storedAttestation(persistedHistory)
+      : { ...attestation, executionProofHash },
+  };
+}
+
+function storedAttestation(history: {
+  attestationTxHash: string | null;
+  executionProofHash: string | null;
+}) {
+  return {
+    transactionHash: history.attestationTxHash,
+    transactionLink: history.attestationTxHash
+      ? `https://sepolia.etherscan.io/tx/${history.attestationTxHash}`
+      : undefined,
+    executionProofHash: history.executionProofHash,
   };
 }
 

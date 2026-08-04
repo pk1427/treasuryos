@@ -92,6 +92,7 @@ export async function POST(request: Request) {
         protocol: "uniswap-v3",
         reportHash: validated.reportHash as `0x${string}`,
         expectedTransaction,
+        simulationResult: validated.simulationResult,
       });
 
       tracePipeline("direct-execution-confirmed", {
