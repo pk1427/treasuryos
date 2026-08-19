@@ -453,9 +453,8 @@ export function ExecutionPlanCard({ address }: Props) {
                   Simulate
                 </Button>
                 <span className="text-xs text-zinc-500">
-                  Simulation does not move funds. It estimates what would happen
-                  if this plan were executed, using KeeperHub&apos;s simulation
-                  endpoint.
+                  Simulation does not move funds. It estimates the prepared
+                  transaction from the connected wallet context.
                 </span>
               </div>
             ) : null}

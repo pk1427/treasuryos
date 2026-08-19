@@ -1,9 +1,7 @@
-import { createPublicClient, encodePacked, http, keccak256 } from "viem";
+import { createPublicClient, http } from "viem";
 import { sepolia } from "viem/chains";
 import type { PreparedTransaction } from "./types";
-import { publishAttestation } from "@treasuryos/attestation";
 import { executionHistoryRepo } from "@/server/repositories";
-import { indexPublishedAttestationTransaction } from "@/server/services/attestation-indexer-service";
 
 const publicClient = createPublicClient({
   chain: sepolia,
@@ -23,7 +21,7 @@ export async function persistExecutionHistory(input: {
   const receipt = await publicClient.waitForTransactionReceipt({
     hash: input.txHash,
   });
-  if (receipt.status !== "success") throw new Error("Execution transaction reverted; history and attestation were not recorded.");
+  if (receipt.status !== "success") throw new Error("Execution transaction reverted; history was not recorded.");
   const transaction = await publicClient.getTransaction({ hash: input.txHash });
   if (
     transaction.from.toLowerCase() !== input.wallet.toLowerCase() ||
@@ -36,39 +34,19 @@ export async function persistExecutionHistory(input: {
     planId: input.planId,
     wallet: input.wallet,
     txHash: input.txHash,
+    reportHash: input.reportHash,
     chain: "sepolia",
     protocol: input.protocol,
     status: receipt.status,
   });
 
-  const executionProofHash = keccak256(
-    encodePacked(["bytes32", "bytes32"], [input.reportHash, input.txHash])
-  );
-  const attestation = await publishExecutionAttestation({
-    wallet: input.wallet,
-    executionProofHash,
-  });
-
   return {
     history,
     receipt,
-    attestation: { ...attestation, executionProofHash },
+    proof: {
+      reportHash: input.reportHash,
+      transactionHash: input.txHash,
+      verification: "verified",
+    },
   };
-}
-
-async function publishExecutionAttestation(input: {
-  wallet: string;
-  executionProofHash: `0x${string}`;
-}) {
-  const result = await publishAttestation({
-    treasuryAddress: input.wallet,
-    reportHash: input.executionProofHash,
-    network: "sepolia",
-  });
-
-  if (result.transactionHash) {
-    await indexPublishedAttestationTransaction(result.transactionHash);
-  }
-
-  return result;
 }

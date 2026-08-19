@@ -10,6 +10,18 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const wallet = searchParams.get("wallet");
 
+  if (searchParams.get("scope") === "public") {
+    try {
+      const history = await executionHistoryRepo.listPublic();
+      return NextResponse.json({ history });
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Failed to load public execution records" },
+        { status: 500 }
+      );
+    }
+  }
+
   if (!wallet) {
     return NextResponse.json({ error: "wallet required" }, { status: 400 });
   }
@@ -87,7 +99,7 @@ export async function POST(request: Request) {
         explorer: `https://sepolia.etherscan.io/tx/${body.txHash}`,
         status: result.receipt.status,
         historyId: result.history.id,
-        attestation: result.attestation,
+        proof: result.proof,
       });
     }
 

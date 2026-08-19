@@ -30,11 +30,7 @@ type ExecuteCompleteResponse = {
   explorer: string;
   status: string;
   historyId: string;
-  attestation?: {
-    transactionHash?: string;
-    transactionLink?: string;
-    status?: string;
-  };
+  proof?: { reportHash: string; transactionHash: string; verification: string };
 };
 
 export function ExecutionButton({
@@ -117,9 +113,9 @@ export function ExecutionButton({
           <p className="font-mono text-xs text-zinc-300 break-all">
             {result.txHash}
           </p>
-          {result.attestation?.transactionHash ? (
+          {result.proof ? (
             <p className="mt-2 font-mono text-xs text-emerald-300 break-all">
-              Attestation: {result.attestation.transactionHash}
+              Receipt verification: {result.proof.verification}
             </p>
           ) : null}
         </div>

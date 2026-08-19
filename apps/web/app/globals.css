@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #09090b;
-  --foreground: #fafafa;
+  --background: #fbfbfd;
+  --foreground: #101828;
 }
 
 @theme inline {
@@ -17,6 +17,20 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
 }
+
+/* Shared application surface: restrained, light portfolio UI. */
+.bg-zinc-950 { background-color: #fbfbfd !important; }
+.bg-zinc-950\/90, .bg-zinc-950\/95, .bg-zinc-950\/70 { background-color: rgba(255, 255, 255, 0.94) !important; }
+.bg-zinc-900, .bg-zinc-900\/70, .bg-zinc-900\/80, .bg-zinc-900\/60 { background-color: #ffffff !important; }
+.bg-zinc-900\/40, .bg-zinc-950\/40, .bg-zinc-950\/50 { background-color: #f8fafc !important; }
+.bg-white\/\[0\.045\], .bg-white\/\[0\.03\] { background-color: #ffffff !important; }
+.border-white\/10, .border-white\/5 { border-color: #e2e8f0 !important; }
+.text-white, .text-zinc-100 { color: #101828 !important; }
+.text-zinc-200, .text-zinc-300 { color: #344054 !important; }
+.text-zinc-400, .text-zinc-500 { color: #667085 !important; }
+.bg-zinc-800 { background-color: #eef2f7 !important; }
+.bg-zinc-700 { background-color: #d0d5dd !important; }
+.divide-white\/10 > :not([hidden]) ~ :not([hidden]) { border-color: #e2e8f0 !important; }
 
 @keyframes slide-up {
   from {

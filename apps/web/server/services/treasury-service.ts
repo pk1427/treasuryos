@@ -8,7 +8,6 @@ import {
   generateRecommendations,
   generateAiExplanation,
 } from "@/lib/ai/cfo-agent";
-import { simulate, execute } from "@/lib/keeperhub";
 import { db } from "@/lib/db";
 import {
   treasuryRepo,
@@ -293,58 +292,6 @@ export class TreasuryService {
     };
   }
 
-  async executeDecision(decisionId: string, walletAddress: string) {
-    if (!db) {
-      const state = getOrCreateDemoState(walletAddress);
-      const decision = state.decisions.find((d) => d.id === decisionId);
-      if (!decision) throw new Error("Decision not found");
-
-      const simulation = await simulate(decision.actionPlan);
-      const result = await execute(decision.actionPlan);
-
-      const execution = {
-        id: `exec-${Date.now()}`,
-        decisionId,
-        txHash: result.txHash,
-        status: result.status,
-        gasUsed: result.gasUsed?.toString(),
-        timestamp: new Date(),
-        decision: {
-          type: decision.type,
-          explanation: decision.explanation,
-          recommendation: decision.recommendation,
-        },
-      };
-
-      state.executions.push(execution);
-      decision.status = "executed";
-
-      return { simulation, execution: result, decision };
-    }
-
-    const decision = await decisionRepo.getById(decisionId);
-    if (!decision) throw new Error("Decision not found");
-
-    const actionPlan = JSON.parse(decision.actionPlan ?? "{}");
-    const simulation = await simulate(actionPlan);
-
-    const execRecord = await executionRepo.create(decisionId, {
-      simulationResult: JSON.stringify(simulation),
-    });
-
-    const result = await execute(actionPlan);
-
-    await executionRepo.update(execRecord.id, {
-      txHash: result.txHash,
-      status: result.status,
-      gasUsed: result.gasUsed?.toString(),
-      gasEstimate: simulation.gasEstimate.toString(),
-    });
-
-    await decisionRepo.updateStatus(decisionId, "executed");
-
-    return { simulation, execution: result, decision };
-  }
 }
 
 export const treasuryService = new TreasuryService();

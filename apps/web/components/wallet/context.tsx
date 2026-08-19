@@ -1,8 +1,10 @@
 "use client";
 
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
 
 const SEPOLIA_CHAIN_ID_HEX = "0xaa36a7";
+const WALLET_SESSION_KEY = "treasuryos-wallet-session";
+const WALLET_ADDRESS_KEY = "treasuryos-wallet-address";
 
 type WalletState = {
   address: string | null;
@@ -24,10 +26,32 @@ type WalletState = {
 const WalletContext = createContext<WalletState | null>(null);
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const [address, setAddress] = useState<string | null>(null);
+  const [address, setAddress] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : window.sessionStorage.getItem(WALLET_ADDRESS_KEY)
+  );
   const [chainId, setChainId] = useState<number | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (window.sessionStorage.getItem(WALLET_SESSION_KEY) !== "connected") return;
+    const ethereum = (window as unknown as { ethereum?: { request: (args: { method: string }) => Promise<unknown> } }).ethereum;
+    if (!ethereum) return;
+    Promise.all([
+      ethereum.request({ method: "eth_accounts" }) as Promise<string[]>,
+      ethereum.request({ method: "eth_chainId" }) as Promise<string>,
+    ])
+      .then(([accounts, chain]) => {
+        if (!accounts[0]) return;
+        setAddress(accounts[0]);
+        window.sessionStorage.setItem(WALLET_ADDRESS_KEY, accounts[0]);
+        setChainId(parseInt(chain, 16));
+      })
+      .catch(() => {
+        window.sessionStorage.removeItem(WALLET_SESSION_KEY);
+        window.sessionStorage.removeItem(WALLET_ADDRESS_KEY);
+      });
+  }, []);
 
   const connect = useCallback(async () => {
     setIsConnecting(true);
@@ -61,6 +85,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
       setAddress(accounts[0]);
       setChainId(parseInt(chain, 16));
+      window.sessionStorage.setItem(WALLET_SESSION_KEY, "connected");
+      window.sessionStorage.setItem(WALLET_ADDRESS_KEY, accounts[0]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect wallet");
       setAddress(null);
@@ -74,6 +100,8 @@ export function WalletProvider({ children }: { children: ReactNode }) {
     setAddress(null);
     setChainId(null);
     setError(null);
+    window.sessionStorage.removeItem(WALLET_SESSION_KEY);
+    window.sessionStorage.removeItem(WALLET_ADDRESS_KEY);
   }, []);
 
   const signMessage = useCallback(

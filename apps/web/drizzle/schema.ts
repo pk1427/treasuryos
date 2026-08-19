@@ -109,32 +109,6 @@ export const executions = pgTable("executions", {
   timestamp: timestamp("timestamp").defaultNow().notNull(),
 });
 
-export const attestations = pgTable(
-  "attestations",
-  {
-    id: uuid("id").defaultRandom().primaryKey(),
-    network: text("network").notNull(),
-    treasury: text("treasury").notNull(),
-    reportHash: text("report_hash").notNull(),
-    publisher: text("publisher").notNull(),
-    txHash: text("tx_hash").notNull(),
-    blockNumber: numeric("block_number", { precision: 20, scale: 0 }).notNull(),
-    timestamp: timestamp("timestamp").notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-  },
-  (table) => ({
-    txHashIdx: uniqueIndex("attestations_tx_hash_idx").on(table.txHash),
-    networkTimestampIdx: index("attestations_network_timestamp_idx").on(
-      table.network,
-      table.timestamp
-    ),
-    treasuryTimestampIdx: index("attestations_treasury_timestamp_idx").on(
-      table.treasury,
-      table.timestamp
-    ),
-  })
-);
-
 export const executionPlans = pgTable(
   "execution_plans",
   {
@@ -174,6 +148,7 @@ export const executionHistory = pgTable(
       .references(() => executionPlans.id, { onDelete: "cascade" }),
     wallet: text("wallet").notNull(),
     txHash: text("tx_hash").notNull(),
+    reportHash: text("report_hash").notNull(),
     chain: text("chain").notNull(),
     protocol: text("protocol").notNull(),
     status: text("status").notNull(),

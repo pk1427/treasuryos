@@ -35,10 +35,3 @@ export async function analyzeTreasuryAction(walletAddress: string) {
 export async function getDashboardAction(walletAddress: string) {
   return treasuryService.getDashboardData(walletAddress);
 }
-
-export async function executeDecisionAction(
-  decisionId: string,
-  walletAddress: string
-) {
-  return treasuryService.executeDecision(decisionId, walletAddress);
-}

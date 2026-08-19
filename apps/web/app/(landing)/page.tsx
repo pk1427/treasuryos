@@ -2,21 +2,18 @@ import Link from "next/link";
 import {
   ArrowRight,
   BarChart3,
-  FileCheck2,
-  LockKeyhole,
   RadioTower,
-  ScanLine,
   ShieldCheck,
   Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { StatusPill } from "@/components/ui/treasury-primitives";
+import { PublicTreasurySearch } from "@/components/treasury/public-treasury-search";
 
 const pillars = [
   {
     title: "AI Treasury Intelligence",
     description:
-      "Scan any public treasury, score risk across concentration and stress scenarios, and receive an operator-grade brief — no wallet required.",
+      "Connect once, then inspect any public treasury, score concentration and stress risk, and receive an operator-grade brief.",
     icon: BarChart3,
     href: "/dashboard",
     cta: "Start analysis",
@@ -30,72 +27,51 @@ const pillars = [
     cta: "Connect wallet",
   },
   {
-    title: "Verifiable Onchain Proof",
+    title: "Execution Verification",
     description:
-      "Every execution is recorded with a report hash, attestation, and inspectable proof trail — no custody, no hidden steps.",
+      "Every verified execution is recorded with its report hash, receipt, and inspectable verification trail — no custody, no hidden steps.",
     icon: RadioTower,
     href: "/proof-attestation",
-    cta: "View proof history",
+    cta: "View execution history",
   },
-];
-
-const trustItems = [
-  { icon: LockKeyhole, label: "No custody", body: "Funds never leave your wallet." },
-  { icon: ShieldCheck, label: "Owner only", body: "Execution unlocks only for the verified owner." },
-  { icon: ScanLine, label: "Read-only analysis", body: "Inspect any treasury without connecting." },
-  { icon: RadioTower, label: "Onchain proof", body: "Attestation and proof trail on Sepolia." },
-  { icon: FileCheck2, label: "Simulation first", body: "Every plan is simulated before execution." },
-  { icon: Wallet, label: "You sign", body: "No autonomous transactions. Ever." },
 ];
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-zinc-950">
-      <section className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-7xl flex-col justify-center px-4 py-12 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-3xl text-center">
-          <div className="flex items-center justify-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-violet-500 shadow-[0_0_28px_rgba(99,102,241,0.35)]">
-              <ShieldCheck className="h-5 w-5 text-white" />
-            </span>
-            <span className="text-xl font-bold text-zinc-100">TreasuryOS</span>
-          </div>
-          <h1 className="mt-8 text-4xl font-semibold tracking-tight text-white sm:text-6xl">
-            Institutional treasury intelligence and execution
+    <main className="min-h-screen overflow-hidden bg-[#fbfbfd]">
+      <section className="relative mx-auto flex min-h-[calc(100vh-6rem)] max-w-6xl flex-col justify-center px-4 py-20 sm:px-6 lg:px-8">
+        <div aria-hidden className="absolute inset-x-0 top-8 -z-0 mx-auto h-[440px] max-w-4xl rounded-full bg-violet-200/30 blur-3xl" />
+        <div className="relative z-10 mx-auto max-w-4xl text-center animate-slide-up">
+          <p className="text-sm font-semibold tracking-wide text-violet-700">Treasury portfolio intelligence</p>
+          <h1 className="mt-6 text-5xl font-semibold tracking-[-0.055em] text-slate-950 sm:text-7xl">
+            Know what your treasury holds.
           </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-zinc-400">
-            Scan DeFi treasuries, understand risk, review deterministic execution plans,
-            and produce verifiable onchain proof — all owner-controlled.
+          <p className="mx-auto mt-7 max-w-2xl text-lg leading-8 text-slate-500">
+            A clear view of balances, allocations, risk, and owner-controlled DeFi actions—built for teams that need to understand before they move.
           </p>
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Button asChild size="lg">
-              <Link href="/dashboard">
-                Open Command Center
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </Button>
-            <Button asChild variant="outline" size="lg">
-              <Link href="/how-it-works">How it works</Link>
+          <div className="mx-auto mt-10 flex max-w-3xl flex-col items-center gap-3">
+            <PublicTreasurySearch />
+            <Button asChild variant="ghost" size="sm">
+              <Link href="/how-it-works">See how TreasuryOS works <ArrowRight className="h-4 w-4" /></Link>
             </Button>
           </div>
         </div>
 
-        <div className="mx-auto mt-16 w-full max-w-5xl">
-          <p className="mb-6 text-center text-xs font-semibold uppercase tracking-widest text-zinc-500">
-            Three pillars
-          </p>
-          <div className="grid gap-4 sm:grid-cols-3">
+        <div className="relative z-10 mx-auto mt-20 w-full max-w-5xl animate-slide-up">
+          <p className="mb-6 text-center text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">TreasuryOS, at a glance</p>
+          <div className="grid gap-px overflow-hidden rounded-2xl border border-slate-200 bg-slate-200 sm:grid-cols-3">
             {pillars.map((pillar) => (
               <Link
                 key={pillar.title}
                 href={pillar.href}
-                className="group rounded-2xl border border-white/10 bg-zinc-900/70 p-6 transition hover:border-cyan-400/30 hover:bg-zinc-900"
+                className="group bg-white p-7 transition hover:bg-violet-50/50"
               >
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/10 transition group-hover:border-cyan-400/40 group-hover:bg-cyan-400/15">
-                  <pillar.icon className="h-5 w-5 text-cyan-300" />
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-100 transition group-hover:bg-violet-200">
+                  <pillar.icon className="h-5 w-5 text-violet-700" />
                 </div>
                 <h2 className="mt-5 text-lg font-semibold text-white">{pillar.title}</h2>
                 <p className="mt-2 text-sm leading-6 text-zinc-400">{pillar.description}</p>
-                <div className="mt-5 flex items-center gap-2 text-sm font-medium text-cyan-300 transition group-hover:text-cyan-200">
+                <div className="mt-5 flex items-center gap-2 text-sm font-medium text-violet-700 transition group-hover:text-violet-800">
                   {pillar.cta}
                   <ArrowRight className="h-4 w-4" />
                 </div>
@@ -104,53 +80,10 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className="mx-auto mt-16 w-full max-w-5xl">
-          <p className="mb-6 text-center text-xs font-semibold uppercase tracking-widest text-zinc-500">
-            Trust & security
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {trustItems.map((item) => (
-              <div
-                key={item.label}
-                className="flex items-start gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4"
-              >
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-400/10 text-emerald-300">
-                  <item.icon className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-zinc-200">{item.label}</p>
-                  <p className="mt-1 text-xs leading-5 text-zinc-500">{item.body}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="mx-auto mt-16 w-full max-w-5xl">
-          <div className="rounded-2xl border border-white/10 bg-zinc-900/70 p-6 sm:p-8">
-            <div className="grid gap-6 lg:grid-cols-[1fr_auto] lg:items-center">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
-                  Ready to inspect a treasury?
-                </p>
-                <h2 className="mt-2 text-2xl font-semibold text-white">
-                  Paste any address and scan in seconds.
-                </h2>
-                <p className="mt-2 text-sm text-zinc-400">
-                  Analyze mode is read-only. Manage mode requires the owner wallet.
-                </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <StatusPill tone="info">Sepolia testnet</StatusPill>
-                <Button asChild size="lg">
-                  <Link href="/dashboard">
-                    Scan Treasury
-                    <ScanLine className="h-4 w-4" />
-                  </Link>
-                </Button>
-              </div>
-            </div>
-          </div>
+        <div className="mx-auto mt-16 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 text-sm text-slate-500">
+          <span className="inline-flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-violet-600" /> No custody</span>
+          <span className="inline-flex items-center gap-2"><Wallet className="h-4 w-4 text-violet-600" /> You sign every transaction</span>
+          <Link className="inline-flex items-center gap-2 font-medium text-violet-700 hover:text-violet-900" href="/proof-attestation"><RadioTower className="h-4 w-4" /> View public proofs</Link>
         </div>
       </section>
     </main>

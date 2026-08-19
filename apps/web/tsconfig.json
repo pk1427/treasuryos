@@ -23,8 +23,7 @@
       "@treasuryos/shared": ["../../packages/shared/src"],
       "@treasuryos/indexer": ["../../packages/indexer/src"],
       "@treasuryos/risk-engine": ["../../packages/risk-engine/src"],
-      "@treasuryos/simulator": ["../../packages/simulator/src"],
-      "@treasuryos/attestation": ["../../packages/attestation/src"]
+      "@treasuryos/simulator": ["../../packages/simulator/src"]
     }
   },
   "include": [

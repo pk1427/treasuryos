@@ -7,46 +7,40 @@ import { Menu, Shield, X, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useWallet } from "@/components/wallet/context";
-import { useTreasurySession } from "@/components/treasury/session-context";
-import { StatusPill } from "@/components/ui/treasury-primitives";
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/positions", label: "Positions" },
-  { href: "/execution", label: "Execution" },
-  { href: "/proof-attestation", label: "Proof" },
-  { href: "/proof-trail", label: "Trail" },
-  { href: "/how-it-works", label: "How it Works" },
+  { href: "/dashboard", label: "Portfolio", sectionPaths: ["/dashboard", "/positions", "/stream", "/execution"] },
+  { href: "/proof-attestation", label: "Proofs" },
+  { href: "/how-it-works", label: "How it works" },
 ];
 
 export function Navbar() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const { address, isConnected, isConnecting, error, connect, disconnect } = useWallet();
-  const { mode, isOwnerVerified } = useTreasurySession();
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/10 bg-zinc-950/70 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+    <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur-xl">
+      <div className="mx-auto flex h-24 max-w-6xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link href="/" className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-cyan-500 to-violet-500 shadow-[0_0_28px_rgba(99,102,241,0.35)]">
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 shadow-sm">
             <Shield className="h-5 w-5 text-white" />
           </span>
-          <span className="text-lg font-bold text-zinc-100">TreasuryOS</span>
+          <span className="text-2xl font-bold tracking-tight text-slate-950">TreasuryOS</span>
         </Link>
 
-        <nav className="hidden items-center gap-1 rounded-full border border-white/10 bg-white/[0.03] p-1 md:flex">
+        <nav className="hidden items-center gap-9 md:flex">
           {navItems.map((item) => {
-            const active = pathname.startsWith(item.href);
+            const active = (item.sectionPaths ?? [item.href]).some((path) => pathname.startsWith(path));
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "rounded-full px-4 py-2 text-sm font-medium transition",
+                  "border-b-2 py-1 text-sm font-medium transition",
                   active
-                    ? "bg-white/10 text-white"
-                    : "text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-100"
+                    ? "border-violet-600 text-slate-950"
+                    : "border-transparent text-slate-500 hover:text-slate-950"
                 )}
               >
                 {item.label}
@@ -56,17 +50,13 @@ export function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
-          <StatusPill tone="info">Sepolia testnet</StatusPill>
-          <StatusPill tone={mode === "manage" && isOwnerVerified ? "success" : mode === "manage" ? "warning" : "neutral"}>
-            {mode === "manage" ? isOwnerVerified ? "Manage · owner verified" : "Manage · verification required" : "Analyze · read-only"}
-          </StatusPill>
           {isConnected && address ? (
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs text-zinc-300">
+              <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-2 font-mono text-xs text-violet-700">
                 {address.slice(0, 6)}...{address.slice(-4)}
               </span>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={disconnect}
                 className="text-xs"
@@ -77,7 +67,7 @@ export function Navbar() {
           ) : (
             <div className="flex flex-col items-end gap-1">
               <Button
-                variant="secondary"
+                variant="default"
                 size="sm"
                 onClick={connect}
                 disabled={isConnecting}
@@ -107,25 +97,23 @@ export function Navbar() {
       </div>
 
       {open ? (
-        <div className="border-t border-white/10 bg-zinc-950/95 px-4 py-4 md:hidden">
+        <div className="border-t border-slate-200 bg-white px-4 py-4 md:hidden">
           <nav className="grid gap-2">
             {navItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 onClick={() => setOpen(false)}
-                className="rounded-lg px-3 py-2 text-sm font-medium text-zinc-300 hover:bg-white/[0.06] hover:text-white"
+                className="rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-violet-50 hover:text-violet-700"
               >
                 {item.label}
               </Link>
             ))}
           </nav>
           <div className="mt-3 flex flex-col gap-2">
-            <StatusPill tone="info" className="justify-center">Sepolia testnet</StatusPill>
-            <StatusPill tone={mode === "manage" && isOwnerVerified ? "success" : mode === "manage" ? "warning" : "neutral"} className="justify-center">{mode === "manage" ? isOwnerVerified ? "Manage · owner verified" : "Manage · verification required" : "Analyze · read-only"}</StatusPill>
             {isConnected && address ? (
-              <div className="flex items-center justify-between rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2">
-                <span className="font-mono text-xs text-zinc-300">
+              <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <span className="font-mono text-xs text-slate-700">
                   {address.slice(0, 6)}...{address.slice(-4)}
                 </span>
                 <Button
@@ -140,7 +128,7 @@ export function Navbar() {
             ) : (
               <div className="flex flex-col gap-1">
                 <Button
-                  variant="secondary"
+                  variant="default"
                   size="sm"
                   onClick={connect}
                   disabled={isConnecting}

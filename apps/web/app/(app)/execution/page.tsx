@@ -28,7 +28,6 @@ export default function ExecutionPage() {
   const wallet = useWallet();
   const session = useTreasurySession();
   const {
-    mode,
     analyzedAddress: address,
     reportResponse,
     connectedWallet,
@@ -72,8 +71,7 @@ export default function ExecutionPage() {
       .catch(() => undefined);
   }, [wallet.address, executionResult]);
 
-  const locked =
-    mode === "analyze" || !connectedWallet || !ownerVerified;
+  const locked = !connectedWallet || !ownerVerified;
   const mismatch =
     Boolean(connectedWallet && report?.address) &&
     connectedWallet!.toLowerCase() !== report!.address.toLowerCase();
@@ -171,25 +169,10 @@ export default function ExecutionPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950">
-      <div className="border-b border-white/10 bg-zinc-950/90">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:px-8">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
-              TreasuryOS — Execution
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold text-white">
-              Execution Plan
-            </h1>
-            <p className="mt-1 text-sm text-zinc-400">
-              Review, simulate, sign, and execute owner-controlled treasury actions.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
+        <h1 className="mb-10 text-4xl font-semibold tracking-tight text-violet-700">Execution</h1>
         {locked && !mismatch ? (
-          <LockedPanel mode={mode} onConnect={wallet.connect} />
+          <LockedPanel onConnect={wallet.connect} />
         ) : locked && mismatch ? (
           <MismatchedWalletPanel connectedWallet={connectedWallet} analyzedAddress={report?.address ?? address} />
         ) : executionResult ? (
@@ -217,8 +200,8 @@ export default function ExecutionPage() {
                 className={cn(
                   "rounded-lg px-3 py-1.5 text-sm font-medium transition",
                   activeTab === "live"
-                    ? "bg-cyan-400/10 text-cyan-300"
-                    : "text-zinc-500 hover:text-zinc-300"
+                    ? "bg-violet-50 text-violet-700"
+                    : "text-slate-500 hover:text-slate-900"
                 )}
                 onClick={() => setActiveTab("live")}
               >
@@ -229,8 +212,8 @@ export default function ExecutionPage() {
                 className={cn(
                   "rounded-lg px-3 py-1.5 text-sm font-medium transition",
                   activeTab === "history"
-                    ? "bg-cyan-400/10 text-cyan-300"
-                    : "text-zinc-500 hover:text-zinc-300"
+                    ? "bg-violet-50 text-violet-700"
+                    : "text-slate-500 hover:text-slate-900"
                 )}
                 onClick={() => setActiveTab("history")}
               >
@@ -252,10 +235,10 @@ export default function ExecutionPage() {
               <ExecutionError error={error} onRetry={loadPlan} />
             ) : plan && plan.steps.length > 0 ? (
               <div className="space-y-6">
-                <section className="rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-4">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-cyan-200">Owner-controlled execution workflow</p>
+                <section className="rounded-xl border border-violet-200 bg-violet-50/60 p-5">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-violet-700">Owner-controlled execution</p>
                   <WorkflowStepper steps={["Generate", "Approve", "Simulate", "Sign", "Execute"]} activeStep={planStatus === "SIGNED" ? "Execute" : planStatus === "APPROVED" ? simulation ? "Sign" : "Simulate" : "Approve"} completedThrough={planStatus === "SIGNED" ? 3 : planStatus === "APPROVED" ? simulation ? 2 : 1 : 0} />
-                  <p className="mt-3 text-xs text-zinc-400">Approval, simulation, and intent signing do not move funds. Only the final Execute action opens your wallet transaction prompt.</p>
+                  <p className="mt-4 text-sm text-slate-600">Each step creates a reviewable checkpoint. Only <strong>Execute</strong> opens a transaction prompt in your wallet.</p>
                 </section>
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusPill tone="success">Ownership verified</StatusPill>
@@ -360,9 +343,9 @@ export default function ExecutionPage() {
                   ) : null}
                 </div>
                 {plan.warnings && plan.warnings.length > 0 ? (
-                  <div className="space-y-1">
+                  <div className="space-y-1 rounded-lg border border-slate-200 bg-slate-50 p-3">
                     {plan.warnings.map((w, i) => (
-                      <p key={i} className="text-xs text-amber-400">{w}</p>
+                      <p key={i} className="text-xs text-slate-600">{w}</p>
                     ))}
                   </div>
                 ) : null}
@@ -471,8 +454,8 @@ function ExecutionTicket({
           </div>
         </div>
 
-        <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-cyan-200">Quote</p>
+        <div className="border-y border-slate-200 py-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Quote</p>
           <div className="mt-3 grid gap-4 sm:grid-cols-3">
             <div>
               <p className="text-xs text-zinc-500">Est. output</p>
@@ -484,7 +467,7 @@ function ExecutionTicket({
             </div>
             <div>
               <p className="text-xs text-zinc-500">Network</p>
-              <p className="font-mono text-sm text-amber-300">Sepolia testnet — pricing may not reflect market value</p>
+              <p className="font-mono text-sm text-slate-600">Sepolia testnet</p>
             </div>
           </div>
         </div>
@@ -501,9 +484,9 @@ function ExecutionTicket({
         </div>
 
         {plan.warnings && plan.warnings.length > 0 ? (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
             {plan.warnings.map((w, i) => (
-              <p key={i} className="text-xs text-amber-300">{w}</p>
+              <p key={i} className="text-xs text-slate-600">{w}</p>
             ))}
           </div>
         ) : null}
@@ -525,20 +508,15 @@ function PreconditionCheck({ label, passed }: { label: string; passed: boolean }
   );
 }
 
-function LockedPanel({ mode, onConnect }: { mode: "analyze" | "manage"; onConnect: () => void }) {
-  const noWalletCopy =
-    mode === "analyze"
-      ? "Connect the wallet that owns this treasury to switch from Analyze mode into Manage mode."
-      : "No wallet is connected. Connect the treasury owner wallet to unlock execution planning.";
-
+function LockedPanel({ onConnect }: { onConnect: () => void }) {
   return (
-    <Card className="rounded-xl border-amber-500/30 bg-amber-500/10">
+    <Card className="rounded-xl border-violet-200 bg-violet-50">
       <CardContent className="flex items-start gap-3 p-6">
-        <Lock className="mt-0.5 h-5 w-5 text-amber-300" />
+        <Lock className="mt-0.5 h-5 w-5 text-violet-700" />
         <div>
-          <p className="font-medium text-amber-200">Manage mode required</p>
+          <p className="font-medium text-slate-950">Connect the treasury owner to execute</p>
           <p className="mt-1 text-sm text-zinc-400">
-            {noWalletCopy}
+            Connect the wallet that owns the selected treasury to unlock execution planning.
           </p>
           <Button className="mt-3" variant="secondary" size="sm" onClick={onConnect}>
             <Wallet className="h-4 w-4" />
@@ -552,11 +530,11 @@ function LockedPanel({ mode, onConnect }: { mode: "analyze" | "manage"; onConnec
 
 function MismatchedWalletPanel({ connectedWallet, analyzedAddress }: { connectedWallet: string | null; analyzedAddress: string }) {
   return (
-    <Card className="rounded-xl border-red-500/30 bg-red-500/10">
+    <Card className="rounded-xl border-slate-200 bg-slate-50">
       <CardContent className="flex items-start gap-3 p-6">
-        <Lock className="mt-0.5 h-5 w-5 text-red-300" />
+        <Lock className="mt-0.5 h-5 w-5 text-slate-600" />
         <div>
-          <p className="font-medium text-red-200">Execution unavailable for this treasury</p>
+          <p className="font-medium text-slate-950">This wallet cannot execute for the selected treasury</p>
           <p className="mt-1 text-sm text-zinc-400">
             Connected wallet {shortenAddress(connectedWallet!)} does not own {shortenAddress(analyzedAddress)}.
           </p>
@@ -602,10 +580,10 @@ function ExecutionConfirmation({ result, reportHash }: { result: { txHash: strin
         </div>
         <div className="mt-4 flex flex-wrap gap-3">
           <Button asChild variant="secondary" size="sm">
-            <a href="/proof-trail">View Proof Trail <ArrowRight className="h-4 w-4" /></a>
+            <a href="/stream">View treasury activity <ArrowRight className="h-4 w-4" /></a>
           </Button>
           <Button asChild variant="outline" size="sm">
-            <a href="/proof-attestation">View Attestations</a>
+          <a href="/proof-attestation">View public proofs</a>
           </Button>
         </div>
       </CardContent>
@@ -656,11 +634,10 @@ function BeforeAfterPanel({ ethExposureBefore, ethExposureAfter, usdcBalanceBefo
   );
 }
 
-function ProofOfExecution({ txHash, explorer, reportHash, attestationHash }: {
+function ProofOfExecution({ txHash, explorer, reportHash }: {
   txHash: string;
   explorer: string;
   reportHash?: string;
-  attestationHash?: string;
 }) {
   return (
     <Card className="rounded-xl bg-zinc-900/70">
@@ -685,16 +662,8 @@ function ProofOfExecution({ txHash, explorer, reportHash, attestationHash }: {
             <span className="font-mono text-xs text-zinc-300">{shortenHash(reportHash)}</span>
           </div>
         ) : null}
-        {attestationHash ? (
-          <div className="flex items-center justify-between">
-            <span className="text-xs uppercase text-zinc-500">Attestation</span>
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-xs text-zinc-300">{shortenHash(attestationHash)}</span>
-            </div>
-          </div>
-        ) : null}
         <Button asChild variant="secondary" size="sm">
-          <a href="/proof-trail">View full Proof Trail <ArrowRight className="h-4 w-4" /></a>
+          <a href="/proof-attestation">View public proofs <ArrowRight className="h-4 w-4" /></a>
         </Button>
       </CardContent>
     </Card>
@@ -750,7 +719,7 @@ function ExecutionHistory({
                 <th className="px-4 py-3 font-medium">Action</th>
                 <th className="px-4 py-3 font-medium">Tx Hash</th>
                 <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Proof</th>
+                <th className="px-4 py-3 font-medium">Public record</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
@@ -766,7 +735,7 @@ function ExecutionHistory({
                   </td>
                   <td className="px-4 py-3">
                     <Button asChild variant="ghost" size="sm">
-                      <a href={`/proof-trail?tx=${entry.txHash}`}>View Trail <ArrowRight className="h-4 w-4" /></a>
+                      <a href="/proof-attestation">View Proofs <ArrowRight className="h-4 w-4" /></a>
                     </Button>
                   </td>
                 </tr>

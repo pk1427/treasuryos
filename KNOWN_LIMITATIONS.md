@@ -4,11 +4,11 @@ This document captures verified gaps, constraints, and carry-forward items disco
 
 ---
 
-## 1. KeeperHub simulation runs from a default address; viem fallback added in v5.4
+## 1. Wallet-context simulation uses viem
 
-- **Original problem:** KeeperHub's simulation endpoint executes from address `0x1DB018D456bC00810BD02E76787be42CAD7F60cF` (a default simulation caller), not from the treasury owner's connected wallet. Simulation validated plan structure and connectivity, but did not validate whether the actual treasury owner's wallet could execute the plan (sufficient balance, existing approvals, correct debt state).
+- **Original problem:** Earlier simulation did not reliably validate the treasury owner's wallet context. Structural validation alone could not prove sufficient balance, existing approvals, or the correct debt state.
 - **What we know:** During v5.2 testing, Aave `repay` simulation on `0x616074f143306b4CeFe272E546f73044e85C6d6d` reverted with a generic `CALL_EXCEPTION` / "missing revert data" across exact-amount, max-uint, and 1-wei test values. The failure was caused by the simulation address having no debt position, not by the repay amount logic.
-- **v5.4 change:** KeeperHub was confirmed to ignore any client-supplied `from` address and always use its own default caller. A viem `simulateContract` fallback was added that runs `eth_call`-style simulation from the connected wallet's address against Sepolia RPC directly. This is used for Aave repay and Uniswap collect-fees steps.
+- **v5.4 change:** A viem `simulateContract` fallback was added that runs `eth_call`-style simulation from the connected wallet's address against Sepolia RPC directly.
 - **Current state:** Simulation now shows either a viem `execution reverted` with the actual sender context, or a successful simulation with the user's wallet as `account`. However, a successful viem simulation requires the same real preconditions as an actual transaction (token approvals, sufficient balances, etc.). The `0x616074...` wallet has USDC balance but zero Aave approval, so repay simulation correctly reverts — this is accurate behavior, but it means we have not yet demonstrated a *successful* Aave repay simulation end-to-end with a real wallet.
 - **Carrying forward:** A fully successful wallet-context repayment simulation should be demonstrated with a wallet that has both (a) Aave debt and (b) existing USDC approval before v5.5 is scoped.
 
@@ -57,7 +57,7 @@ This document captures verified gaps, constraints, and carry-forward items disco
 
 - **What was fixed in v5.2:** `projectedFinalState` now derives from actual step success/failure rather than the plan's aspirational/intended outcome. When all steps fail, it correctly shows current-state values (before) instead of optimistic planned values (after).
 - **Current state (v5.4 update):** viem `simulateContract` fallback now runs from the user's actual wallet address as `account`, so a successful simulation reflects real wallet state. However, for wallets lacking pre-approvals or required token balances, simulation will correctly revert — this is accurate behavior, not a limitation.
-- **User-facing implication:** When `simulationMode` is `viem-user-context`, the simulation result reflects the actual wallet's real constraints. When it falls back to KeeperHub, the old caveat still applies: the result is structural validation from a default address, not a guarantee of real-world executability for the user's wallet.
+- **User-facing implication:** When `simulationMode` is `viem-user-context`, the simulation result reflects the actual wallet's real constraints.
 
 ---
 
@@ -117,7 +117,6 @@ These were identified during v5.4 testing but could not be closed due to test-se
   - **Wallet:** Asset discovery
   - **Uniswap:** Execution validation
   - **Aave:** Risk & debt intelligence
-  - **KeeperHub:** Orchestration
   - **AI:** Planning
 - **Future scope:** Once Uniswap execution is proven, Aave execution actions can be added as new action types in the same framework: `supply()`, `borrow()`, `repay()`, `withdraw()`.
 

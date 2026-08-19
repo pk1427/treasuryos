@@ -11,10 +11,3 @@ export {
   UNISWAP_V3,
   type TreasuryProtocolAdapter,
 } from "./protocols";
-export {
-  ATTESTATION_PUBLISHED_ABI,
-  getAttestationEvents,
-  indexAttestationTransaction,
-  watchAttestationPublished,
-  type IndexedAttestation,
-} from "./attestations";

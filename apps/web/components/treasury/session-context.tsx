@@ -8,12 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type {
-  AttestationResult,
-  AttestationSimulation,
-  RiskReport,
-  RiskReportV2,
-} from "@treasuryos/shared";
+import type { RiskReport, RiskReportV2 } from "@treasuryos/shared";
 import { useWallet } from "@/components/wallet/context";
 
 type ReportResponse = {
@@ -23,7 +18,6 @@ type ReportResponse = {
 };
 
 export type TreasuryMode = "analyze" | "manage";
-export type StepState = "idle" | "loading" | "done" | "error";
 
 type TreasurySessionState = {
   mode: TreasuryMode;
@@ -36,14 +30,6 @@ type TreasurySessionState = {
   setReportResponse: (response: ReportResponse | null) => void;
   riskV2: RiskReportV2 | null;
   setRiskV2: (risk: RiskReportV2 | null) => void;
-  keeperHubSimulation: AttestationSimulation | null;
-  setKeeperHubSimulation: (simulation: AttestationSimulation | null) => void;
-  attestation: AttestationResult | null;
-  setAttestation: (attestation: AttestationResult | null) => void;
-  simulateState: StepState;
-  setSimulateState: (state: StepState) => void;
-  publishState: StepState;
-  setPublishState: (state: StepState) => void;
 };
 
 const TreasurySessionContext = createContext<TreasurySessionState | null>(null);
@@ -54,10 +40,6 @@ type StoredSession = {
   analyzedAddress?: string;
   reportResponse?: ReportResponse | null;
   riskV2?: RiskReportV2 | null;
-  keeperHubSimulation?: AttestationSimulation | null;
-  attestation?: AttestationResult | null;
-  simulateState?: StepState;
-  publishState?: StepState;
 };
 
 export function TreasurySessionProvider({ children }: { children: ReactNode }) {
@@ -66,11 +48,6 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
   const [analyzedAddress, setAnalyzedAddress] = useState("");
   const [reportResponse, setReportResponse] = useState<ReportResponse | null>(null);
   const [riskV2, setRiskV2] = useState<RiskReportV2 | null>(null);
-  const [keeperHubSimulation, setKeeperHubSimulation] =
-    useState<AttestationSimulation | null>(null);
-  const [attestation, setAttestation] = useState<AttestationResult | null>(null);
-  const [simulateState, setSimulateState] = useState<StepState>("idle");
-  const [publishState, setPublishState] = useState<StepState>("idle");
 
   useEffect(() => {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -83,10 +60,6 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
         setAnalyzedAddress(stored.analyzedAddress ?? "");
         setReportResponse(stored.reportResponse ?? null);
         setRiskV2(stored.riskV2 ?? null);
-        setKeeperHubSimulation(stored.keeperHubSimulation ?? null);
-        setAttestation(stored.attestation ?? null);
-        setSimulateState(stored.simulateState ?? "idle");
-        setPublishState(stored.publishState ?? "idle");
       });
     } catch {
       window.localStorage.removeItem(STORAGE_KEY);
@@ -121,21 +94,13 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
       analyzedAddress,
       reportResponse,
       riskV2,
-      keeperHubSimulation,
-      attestation,
-      simulateState,
-      publishState,
     };
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
   }, [
     analyzedAddress,
-    attestation,
-    keeperHubSimulation,
     mode,
-    publishState,
     reportResponse,
     riskV2,
-    simulateState,
   ]);
 
   const isOwnerVerified = useMemo(() => {
@@ -160,14 +125,6 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
         setReportResponse,
         riskV2,
         setRiskV2,
-        keeperHubSimulation,
-        setKeeperHubSimulation,
-        attestation,
-        setAttestation,
-        simulateState,
-        setSimulateState,
-        publishState,
-        setPublishState,
       }}
     >
       {children}
