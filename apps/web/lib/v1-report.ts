@@ -1,4 +1,4 @@
-import { hashRiskReport } from "@treasuryos/attestation";
+import { createHash } from "node:crypto";
 import { scanTreasury } from "@treasuryos/indexer";
 import { scoreTreasuryRisk } from "@treasuryos/risk-engine";
 import { buildRiskReportV2 } from "@treasuryos/risk-engine";
@@ -34,9 +34,26 @@ export async function generateRiskReport(address: string): Promise<{
 
   return {
     report,
-    reportHash: hashRiskReport(reportForHash as RiskReport),
+    reportHash: hashRiskReport(reportForHash),
     riskV2,
   };
+}
+
+function hashRiskReport(report: unknown): `0x${string}` {
+  return `0x${createHash("sha256")
+    .update(stableStringify(report))
+    .digest("hex")}`;
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, child]) => `${JSON.stringify(key)}:${stableStringify(child)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
 }
 
 function stripTimestamps(value: unknown): unknown {

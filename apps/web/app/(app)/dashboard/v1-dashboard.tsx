@@ -1,15 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   Activity,
   ArrowRight,
-  FileJson,
-  Loader2,
-  ScanLine,
-  ShieldCheck,
   Table2,
+  Loader2,
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
@@ -24,13 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { TreasuryBriefing } from "@/components/treasury/treasury-briefing";
-import {
-  HashValue,
-  StatusPill,
-  WorkflowStepper,
-} from "@/components/ui/treasury-primitives";
-import { useWallet } from "@/components/wallet/context";
+import { HashValue, StatusPill, WorkflowStepper } from "@/components/ui/treasury-primitives";
 import { useTreasurySession } from "@/components/treasury/session-context";
 
 const LOADING_STEPS = [
@@ -40,7 +32,7 @@ const LOADING_STEPS = [
   "Calculating risk drivers",
   "Generating report hash",
 ] as const;
-const MANAGE_LIFECYCLE = ["Discover", "Analyze", "Plan", "Execute", "Attest"] as const;
+const MANAGE_LIFECYCLE = ["Discover", "Analyze", "Plan", "Execute", "Record"] as const;
 const ANALYZE_LIFECYCLE = ["Discover", "Analyze", "Understand"] as const;
 const REPORT_REQUEST_TIMEOUT_MS = 60_000;
 
@@ -48,38 +40,23 @@ type StepState = "idle" | "loading" | "done" | "error";
 type Mode = "analyze" | "manage";
 
 export function V1Dashboard() {
-  const wallet = useWallet();
+  const searchParams = useSearchParams();
   const session = useTreasurySession();
   const {
-    mode,
-    setMode,
     analyzedAddress: address,
     setAnalyzedAddress: setAddress,
     reportResponse,
     setReportResponse,
     riskV2,
     setRiskV2,
-    setKeeperHubSimulation: setSimulation,
-    setAttestation,
-    setSimulateState,
-    setPublishState,
   } = session;
   const [reportState, setReportState] = useState<StepState>("idle");
   const [loadingCopy, setLoadingCopy] = useState(LOADING_STEPS[0]);
   const [error, setError] = useState<string | null>(null);
-  const [executableActions, setExecutableActions] = useState<
-    Array<{ label: string; fromAsset: string; toAsset: string }>
-  >([]);
-  const [actionsLoading, setActionsLoading] = useState(false);
-  const [actionsError, setActionsError] = useState<string | null>(null);
+  const requestedAddress = useRef<string | null>(null);
 
   const report = reportResponse?.report;
-  const reportHash = reportResponse?.reportHash;
-  const network = process.env.NEXT_PUBLIC_CHAIN ?? "sepolia";
-  const ownerVerified =
-    Boolean(wallet.address && report?.address) &&
-    wallet.address!.toLowerCase() === report!.address.toLowerCase();
-  const executionUnlocked = mode === "manage" && ownerVerified;
+  const searchAddress = searchParams.get("address") ?? "";
 
   const largestPosition = useMemo(() => {
     if (!report) return null;
@@ -106,43 +83,6 @@ export function V1Dashboard() {
   }, [riskV2]);
   const criticalRiskActive = primaryRisk?.severity === "critical";
 
-  const hasEthPosition = useMemo(() => {
-    if (!report) return false;
-    return report.snapshot.positions.some(
-      (p) => p.protocol === "Wallet" && p.asset === "ETH" && p.amountUsd > 0
-    );
-  }, [report]);
-
-  async function fetchExecutableActions(targetAddress: string) {
-    setActionsLoading(true);
-    setActionsError(null);
-    try {
-      const response = await fetch("/api/executable-actions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: targetAddress }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error ?? "Failed to discover actions");
-      }
-      setExecutableActions(data.actions ?? []);
-    } catch (caught) {
-      setActionsError(
-        caught instanceof Error ? caught.message : "Action discovery failed"
-      );
-      setExecutableActions([]);
-    } finally {
-      setActionsLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!report?.address) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchExecutableActions(report.address);
-  }, [report?.address, reportResponse]);
-
   async function generateReport(inputAddress = address) {
     if (!inputAddress.trim()) {
       setError("Enter a treasury address to analyze.");
@@ -152,13 +92,7 @@ export function V1Dashboard() {
     setAddress(inputAddress.trim());
     setError(null);
     setReportState("loading");
-    setSimulateState("idle");
-    setPublishState("idle");
     setReportResponse(null);
-    setSimulation(null);
-    setAttestation(null);
-    setExecutableActions([]);
-    setActionsError(null);
 
     try {
       const controller = new AbortController();
@@ -192,119 +126,21 @@ export function V1Dashboard() {
     }
   }
 
-  const recommendedAction = useMemo(() => {
-    if (criticalRiskActive && primaryRisk) {
-      return {
-        title: `Address critical risk: ${primaryRisk.title}`,
-        description: primaryRisk.description,
-        cta: executionUnlocked ? "Review execution plan" : "Switch to Manage mode",
-        ctaHref: executionUnlocked ? "/execution" : "#",
-      };
-    }
-    if (primaryRisk) {
-      return {
-        title: `Review ${primaryRisk.title}`,
-        description: primaryRisk.description,
-        cta: executionUnlocked ? "Review execution plan" : "Switch to Manage mode",
-        ctaHref: executionUnlocked ? "/execution" : "#",
-      };
-    }
-    if (report && largestPosition) {
-      return {
-        title: `Monitor ${largestPosition.asset} exposure`,
-        description: `This position represents ${percent(exposure)} of the portfolio. Review concentration and consider rebalancing if risk thresholds are breached.`,
-        cta: executionUnlocked ? "Review execution plan" : "Switch to Manage mode",
-        ctaHref: executionUnlocked ? "/execution" : "#",
-      };
-    }
-    return {
-      title: "Scan a treasury to assess risk",
-      description:
-        "Analyze any address read-only, then switch to Manage mode when you are ready to operate your own treasury.",
-      cta: null,
-      ctaHref: "#",
-    };
-  }, [
-    criticalRiskActive,
-    primaryRisk,
-    report,
-    largestPosition,
-    exposure,
-    executionUnlocked,
-  ]);
+  // The request ref intentionally prevents duplicate scans for the same query address.
+  useEffect(() => {
+    const target = searchAddress.trim();
+    if (!target || reportState !== "idle") return;
+    if (report?.address?.toLowerCase() === target.toLowerCase()) return;
+    if (requestedAddress.current === target.toLowerCase()) return;
+    requestedAddress.current = target.toLowerCase();
+    void generateReport(target);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchAddress, report?.address, reportState]);
+
 
   return (
-    <div className="min-h-screen bg-zinc-950">
-      <div className="border-b border-white/10 bg-zinc-950/90">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
-                TreasuryOS Command Center
-              </p>
-              <h1 className="mt-1 text-2xl font-semibold text-white">
-                Institutional treasury intelligence and execution
-              </h1>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                type="button"
-                variant={mode === "analyze" ? "secondary" : "ghost"}
-                size="sm"
-                onClick={() => setMode("analyze")}
-              >
-                <ScanLine className="h-4 w-4" />
-                Analyze
-              </Button>
-              <Button
-                type="button"
-                variant={mode === "manage" ? "secondary" : "ghost"}
-                size="sm"
-                onClick={async () => {
-                  if (!wallet.address) await wallet.connect();
-                }}
-              >
-                <ShieldCheck className="h-4 w-4" />
-                {ownerVerified ? "Manage · owner verified" : "Manage"}
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-              <label className="flex-1">
-                <span className="text-xs font-medium uppercase text-zinc-500">
-                  {mode === "analyze"
-                    ? "Analyze treasury address"
-                    : "Managed treasury address"}
-                </span>
-                <input
-                  value={address}
-                  onChange={(event) => setAddress(event.target.value)}
-                  placeholder="Paste any Ethereum address"
-                  className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-zinc-900 px-3 font-mono text-sm text-zinc-100 outline-none transition focus:border-cyan-400"
-                />
-              </label>
-              <div className="flex items-center gap-2">
-                <StatusPill tone="info">Sepolia testnet</StatusPill>
-                <Button
-                  onClick={() => generateReport()}
-                  disabled={reportState === "loading"}
-                >
-                  {reportState === "loading" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <ScanLine className="h-4 w-4" />
-                  )}
-                  Scan Treasury
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[#fbfbfd]">
+      <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
         {reportState === "loading" ? (
           <StagedScanBanner activeStep={loadingCopy} />
         ) : error ? (
@@ -312,66 +148,98 @@ export function V1Dashboard() {
             {error}
           </StatusBanner>
         ) : report ? (
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
-            <div className="space-y-6">
-              <LifecycleStrip
-                mode={mode}
-                executionUnlocked={executionUnlocked}
-                hasReport={Boolean(report)}
-                hasSimulation={Boolean(session.keeperHubSimulation)}
-                hasAttestation={Boolean(session.attestation)}
-              />
-
-              <TreasuryHealthCard
-                report={report}
-                reportHash={reportHash}
-                primaryRisk={primaryRisk}
-                criticalRiskActive={criticalRiskActive}
-                recommendedAction={recommendedAction}
-                executionUnlocked={executionUnlocked}
-                mode={mode}
-                executableActions={executableActions}
-                actionsLoading={actionsLoading}
-                actionsError={actionsError}
-                hasEthPosition={hasEthPosition}
-                onSwitchToManage={() => setMode("manage")}
-              />
-
-              <RiskAndSimulation riskV2={riskV2} report={report} />
-            </div>
-
-            <aside className="space-y-6">
-              <PortfolioSummary
-                report={report}
-                largestPosition={largestPosition}
-                exposure={exposure}
-                network={network}
-                managedWallet={wallet.address}
-                ownerVerified={ownerVerified}
-              />
-
-              <Card className="rounded-xl bg-zinc-900/70">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <FileJson className="h-5 w-5 text-violet-300" />
-                    AI Treasury Brief
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <TreasuryBriefing address={report.address} />
-                </CardContent>
-              </Card>
-            </aside>
-          </div>
-        ) : (
-          <EmptyState
-            icon={ScanLine}
-            title="No treasury scanned"
-            body="Paste an Ethereum address above and click Scan Treasury to generate a risk report, stress scenarios, and execution options."
+          <OverviewReport
+            report={report}
+            primaryRisk={primaryRisk}
+            criticalRiskActive={criticalRiskActive}
+            largestPosition={largestPosition}
+            exposure={exposure}
+            riskV2={riskV2}
           />
+        ) : (
+          <EmptyOverview />
         )}
       </main>
     </div>
+  );
+}
+
+function PortfolioIdentity({ report }: { report: RiskReport }) {
+  return (
+    <section className="border-b border-slate-200 pb-8">
+      <div className="flex items-center gap-4">
+        <div className="grid h-16 w-16 place-items-center rounded-full border border-violet-200 bg-violet-50 text-2xl font-semibold text-violet-700">▦</div>
+        <div>
+          <h2 className="font-mono text-2xl font-semibold text-slate-950">
+            {report.address.slice(0, 6)}...{report.address.slice(-4)}
+          </h2>
+          <p className="mt-1 text-slate-500">Public treasury portfolio and risk profile</p>
+        </div>
+      </div>
+      <dl className="mt-8 flex flex-wrap gap-x-16 gap-y-5 text-sm">
+        <div><dt className="text-slate-400">Portfolio value</dt><dd className="mt-1 text-2xl font-semibold text-slate-950">{usd(report.snapshot.totalValueUsd)}</dd></div>
+        <div><dt className="text-slate-400">Positions</dt><dd className="mt-1 text-2xl font-semibold text-slate-950">{report.snapshot.positions.length}</dd></div>
+        <div><dt className="text-slate-400">Report</dt><dd className="mt-1 text-2xl font-semibold text-slate-950">Current snapshot</dd></div>
+      </dl>
+      <div className="mt-8 flex items-center gap-7 border-t border-slate-200 pt-6 text-sm font-medium text-violet-700">
+        <Link href="/positions">Positions <span className="ml-1 text-slate-400">{report.snapshot.positions.length}</span></Link>
+        <Link href="/stream">Activity</Link>
+      </div>
+    </section>
+  );
+}
+
+function OverviewReport({
+  report,
+  primaryRisk,
+  criticalRiskActive,
+  largestPosition,
+  exposure,
+  riskV2,
+}: {
+  report: RiskReport;
+  primaryRisk: RiskFactor | StressRiskFactor | null;
+  criticalRiskActive: boolean;
+  largestPosition: TreasuryPosition | null;
+  exposure: number;
+  riskV2: RiskReportV2 | null;
+}) {
+  const factors = riskV2?.compositeRisk.factors ?? [];
+  return (
+    <div className="space-y-14">
+      <PortfolioIdentity report={report} />
+      <section>
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Portfolio overview</p>
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-slate-950">{primaryRisk?.title ?? "Treasury snapshot"}</h1>
+            <p className="mt-3 max-w-2xl text-lg text-slate-500">{primaryRisk?.description ?? "Current balances, allocation, and risk signals for this treasury."}</p>
+          </div>
+          <Badge variant={criticalRiskActive ? "critical" : ratingVariant(report.score.rating)} className="normal-case">{criticalRiskActive ? "Critical" : report.score.rating}</Badge>
+        </div>
+        <dl className="mt-10 grid gap-6 border-y border-slate-200 py-7 sm:grid-cols-3">
+          <div><dt className="text-sm text-slate-400">Total value</dt><dd className="mt-2 text-2xl font-semibold text-slate-950">{usd(report.snapshot.totalValueUsd)}</dd></div>
+          <div><dt className="text-sm text-slate-400">Largest holding</dt><dd className="mt-2 text-2xl font-semibold text-slate-950">{largestPosition ? `${largestPosition.asset} · ${percent(exposure)}` : "—"}</dd></div>
+          <div><dt className="text-sm text-slate-400">Risk drivers</dt><dd className="mt-2 text-2xl font-semibold text-slate-950">{factors.length}</dd></div>
+        </dl>
+      </section>
+      <RiskAndSimulation riskV2={riskV2} report={report} />
+      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-slate-200 pt-8">
+        <Link href="/positions" className="text-sm font-medium text-violet-700 hover:text-violet-900">View full portfolio</Link>
+        <Button asChild><Link href="/execution">Review execution <ArrowRight className="h-4 w-4" /></Link></Button>
+      </div>
+    </div>
+  );
+}
+
+function EmptyOverview() {
+  return (
+    <section className="mx-auto max-w-xl py-24 text-center">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-violet-600">Portfolio</p>
+      <h1 className="mt-4 text-4xl font-semibold tracking-tight text-slate-950">Choose a treasury to inspect.</h1>
+      <p className="mt-4 text-slate-500">Start from the homepage and enter a public treasury address. TreasuryOS will load its current portfolio and risk profile here.</p>
+      <Button asChild className="mt-8"><Link href="/">Inspect a treasury</Link></Button>
+    </section>
   );
 }
 
@@ -640,14 +508,10 @@ function LifecycleStrip({
   mode,
   executionUnlocked,
   hasReport,
-  hasSimulation,
-  hasAttestation,
 }: {
   mode: Mode;
   executionUnlocked: boolean;
   hasReport: boolean;
-  hasSimulation: boolean;
-  hasAttestation: boolean;
 }) {
   const steps =
     mode === "manage" ? MANAGE_LIFECYCLE : ANALYZE_LIFECYCLE;
@@ -659,13 +523,7 @@ function LifecycleStrip({
     activeStep = hasReport ? "Analyze" : "Discover";
     completedThrough = hasReport ? 1 : 0;
   } else {
-    if (hasAttestation) {
-      activeStep = "Attest";
-      completedThrough = 4;
-    } else if (hasSimulation) {
-      activeStep = "Execute";
-      completedThrough = 3;
-    } else if (executionUnlocked) {
+    if (executionUnlocked) {
       activeStep = "Execute";
       completedThrough = 3;
     } else {
@@ -698,10 +556,12 @@ function RiskAndSimulation({
   report?: RiskReport;
 }) {
   const factors = riskV2?.compositeRisk.factors ?? [];
+  const [showAllFactors, setShowAllFactors] = useState(false);
+  const visibleFactors = showAllFactors ? factors : factors.slice(0, 3);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <Card className="rounded-xl bg-zinc-900/70">
+    <div className="grid items-start gap-8 lg:grid-cols-2">
+      <Card className="rounded-xl bg-white">
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2 text-base">
             <TriangleAlert className="h-5 w-5 text-amber-300" />
@@ -714,12 +574,12 @@ function RiskAndSimulation({
             <MiniScore label="Counterparty" value={report?.score.counterparty} />
             <MiniScore label="Liquidity" value={report?.score.liquidity} />
           </div>
-          <div className="mt-4 space-y-2">
+          <div className="mt-5 divide-y divide-slate-200">
             {factors.length > 0 ? (
-              factors.slice(0, 5).map((factor) => (
+              visibleFactors.map((factor) => (
                 <div
                   key={factor.id}
-                  className="flex items-start gap-3 rounded-lg border border-white/10 bg-zinc-950/50 p-3"
+                  className="flex items-start gap-3 py-4 first:pt-0"
                 >
                   <Badge
                     variant={severityVariant(factor.severity)}
@@ -741,10 +601,19 @@ function RiskAndSimulation({
               <p className="text-sm text-zinc-500">No risk drivers detected.</p>
             )}
           </div>
+          {factors.length > 3 ? (
+            <button
+              type="button"
+              onClick={() => setShowAllFactors((value) => !value)}
+              className="mt-5 text-sm font-medium text-violet-700 transition hover:text-violet-900"
+            >
+              {showAllFactors ? "Show fewer risk drivers" : `View full risk report (${factors.length} drivers)`}
+            </button>
+          ) : null}
         </CardContent>
       </Card>
 
-      <Card className="rounded-xl bg-zinc-900/70">
+      <Card className="rounded-xl bg-white">
         <CardHeader className="pb-4">
           <CardTitle className="flex items-center gap-2 text-base">
             <Activity className="h-5 w-5 text-violet-300" />
@@ -753,14 +622,14 @@ function RiskAndSimulation({
         </CardHeader>
         <CardContent>
           {report ? (
-            <div className="space-y-2">
+            <div className="divide-y divide-slate-200">
               {report.stressResults
                 .slice()
                 .sort((a, b) => stressLoss(b) - stressLoss(a))
                 .map((result) => (
                   <div
                     key={result.scenario}
-                    className="flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-zinc-950/50 p-3"
+                    className="flex items-center justify-between gap-3 py-4 first:pt-0"
                   >
                     <div className="flex-1">
                       <p className="text-sm font-medium text-zinc-100">
@@ -788,23 +657,57 @@ function RiskAndSimulation({
   );
 }
 
+function PerformancePlaceholder() {
+  return (
+    <Card className="rounded-xl bg-zinc-900/70">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Performance</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <p className="text-sm text-zinc-400">
+          Historical PnL and period comparisons are not available yet. TreasuryOS
+          does not estimate performance from a single portfolio snapshot.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
 function StagedScanBanner({ activeStep }: { activeStep: (typeof LOADING_STEPS)[number] }) {
   const activeIndex = Math.max(LOADING_STEPS.indexOf(activeStep), 0);
 
   return (
-    <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-4">
-      <div className="flex items-center gap-2 text-sm font-medium text-cyan-100">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        {activeStep}
+    <section className="mx-auto max-w-3xl rounded-2xl border border-violet-200 bg-white p-6 shadow-[0_18px_50px_rgba(76,29,149,0.08)] sm:p-8">
+      <div className="flex items-center gap-4">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-violet-100">
+          <Loader2 className="h-5 w-5 animate-spin text-violet-700" />
+        </span>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-600">Preparing portfolio</p>
+          <p className="mt-1 text-lg font-semibold text-slate-950">{activeStep}</p>
+        </div>
       </div>
-      <div className="mt-4">
-        <WorkflowStepper
-          steps={LOADING_STEPS}
-          activeStep={activeStep}
-          completedThrough={activeIndex - 1}
+      <div className="mt-7 h-1.5 overflow-hidden rounded-full bg-violet-100">
+        <div
+          className="h-full rounded-full bg-violet-600 transition-all duration-500"
+          style={{ width: `${((activeIndex + 1) / LOADING_STEPS.length) * 100}%` }}
         />
       </div>
-    </div>
+      <ol className="mt-6 grid gap-3 sm:grid-cols-2">
+        {LOADING_STEPS.map((step, index) => {
+          const complete = index < activeIndex;
+          const current = index === activeIndex;
+          return (
+            <li key={step} className={cn("flex items-center gap-3 text-sm", current ? "font-medium text-violet-700" : complete ? "text-slate-700" : "text-slate-400")}>
+              <span className={cn("grid h-6 w-6 place-items-center rounded-full text-xs", complete ? "bg-emerald-100 text-emerald-700" : current ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-400")}>
+                {complete ? "✓" : index + 1}
+              </span>
+              {step}
+            </li>
+          );
+        })}
+      </ol>
+    </section>
   );
 }
 
@@ -834,7 +737,7 @@ function EmptyState({
 function MiniScore({ label, value }: { label: string; value?: number }) {
   const score = value ?? 0;
   return (
-    <div className="min-w-0 rounded-lg border border-white/10 bg-zinc-950/50 p-3">
+    <div className="min-w-0 px-1 py-2 sm:border-r sm:border-slate-200 sm:px-4 sm:first:pl-1 sm:last:border-r-0">
       <div className="flex items-center justify-between gap-2">
         <p className="min-w-0 truncate text-xs uppercase text-zinc-500">
           {label}

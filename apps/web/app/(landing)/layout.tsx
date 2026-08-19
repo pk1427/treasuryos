@@ -1,5 +1,6 @@
 import { WalletProvider } from "@/components/wallet/context";
 import { TreasurySessionProvider } from "@/components/treasury/session-context";
+import { PublicNavbar } from "@/components/treasury/public-navbar";
 
 export default function LandingLayout({
   children,
@@ -9,6 +10,7 @@ export default function LandingLayout({
   return (
     <WalletProvider>
       <TreasurySessionProvider>
+        <PublicNavbar />
         {children}
       </TreasurySessionProvider>
     </WalletProvider>

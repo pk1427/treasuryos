@@ -21,6 +21,7 @@ export function truncateAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
-export function shortenHash(hash: string): string {
+export function shortenHash(hash: string | null | undefined): string {
+  if (!hash) return "Unavailable";
   return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
 }

@@ -5,7 +5,7 @@
   "engines": {
     "node": "22.x"
   },
-  "description": "DeFi treasury risk intelligence with onchain risk attestations",
+  "description": "DeFi treasury risk intelligence with owner-controlled execution verification",
   "scripts": {
     "dev": "npm run dev --workspace=web",
     "build": "npm run build --workspace=web",

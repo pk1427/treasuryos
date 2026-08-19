@@ -30,7 +30,6 @@ export default function PositionsPage() {
   const wallet = useWallet();
   const session = useTreasurySession();
   const {
-    mode,
     analyzedAddress: address,
     reportResponse,
     connectedWallet,
@@ -42,8 +41,7 @@ export default function PositionsPage() {
   const ownerVerified =
     Boolean(wallet.address && report?.address) &&
     wallet.address!.toLowerCase() === report!.address.toLowerCase();
-  const locked =
-    mode === "analyze" || !connectedWallet || !ownerVerified;
+  const locked = !report;
 
   const chartData = useMemo(() => {
     const sorted = [...positions]
@@ -79,34 +77,15 @@ export default function PositionsPage() {
 
   return (
     <div className="min-h-screen bg-zinc-950">
-      <div className="border-b border-white/10 bg-zinc-950/90">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:px-8">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-cyan-300">
-              TreasuryOS — Positions
-            </p>
-            <h1 className="mt-1 text-2xl font-semibold text-white">
-              Treasury Positions
-            </h1>
-            <p className="mt-1 text-sm text-zinc-400">
-              Complete inventory of detected wallet balances and protocol positions.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
+        <h1 className="mb-10 text-4xl font-semibold tracking-tight text-violet-700">Positions</h1>
         {locked ? (
-          <LockedPanel
-            mode={mode}
-            analyzedAddress={report?.address ?? address}
-            connectedWallet={connectedWallet}
-            onConnect={wallet.connect}
-          />
+          <LockedPanel analyzedAddress={address} connectedWallet={connectedWallet} onConnect={wallet.connect} />
         ) : positions.length === 0 ? (
           <EmptyState />
         ) : (
           <div className="space-y-6">
+            {!ownerVerified ? <div className="rounded-lg border border-violet-200 bg-violet-50 px-4 py-3 text-sm text-violet-800">Public, read-only portfolio data. Connect the matching wallet to review execution.</div> : null}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <MetricCard
                 label="Total Value"
@@ -378,12 +357,10 @@ function PositionStatus({
 }
 
 function LockedPanel({
-  mode,
   analyzedAddress,
   connectedWallet,
   onConnect,
 }: {
-  mode: "analyze" | "manage";
   analyzedAddress: string;
   connectedWallet: string | null;
   onConnect: () => void;
@@ -398,14 +375,12 @@ function LockedPanel({
         <Lock className="mt-0.5 h-5 w-5 text-amber-300" />
         <div>
           <p className="font-medium text-amber-200">
-            {mismatch ? "Execution unavailable for this treasury" : "Manage mode required"}
+            {mismatch ? "Execution unavailable for this treasury" : "Choose a treasury first"}
           </p>
           <p className="mt-1 text-sm text-zinc-400">
             {mismatch
               ? `Connected wallet ${shortenAddress(connectedWallet!)} does not own ${shortenAddress(analyzedAddress)}.`
-              : mode === "analyze"
-                ? "Analyze mode is intentionally read-only. Connect the treasury owner wallet to unlock management, execution, and private proof workflows."
-                : "Connect the wallet that owns this treasury to unlock execution planning; TreasuryOS never takes custody of funds."}
+              : "Inspect a treasury from Portfolio to view its positions. Execution unlocks only for the matching owner wallet."}
           </p>
           {!connectedWallet ? (
             <Button className="mt-3" variant="secondary" size="sm" onClick={onConnect}>

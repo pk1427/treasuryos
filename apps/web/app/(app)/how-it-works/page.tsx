@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 const analyzeFlow = [
   {
     title: "Enter any treasury address",
-    body: "Analyze mode is read-only. No wallet connection is required to inspect a public address.",
+    body: "No wallet connection is required to inspect a supported public treasury address.",
     icon: ScanLine,
   },
   {
@@ -39,8 +39,8 @@ const analyzeFlow = [
     icon: ShieldCheck,
   },
   {
-    title: "Generate report hash",
-    body: "The report is hashed so the analysis can be referenced later without pretending the report itself moved funds.",
+    title: "Review the treasury",
+    body: "Portfolio, positions, risk, stress scenarios, and execution activity remain read-only for any public address.",
     icon: Hash,
   },
 ];
@@ -72,8 +72,8 @@ const manageFlow = [
     icon: Send,
   },
   {
-    title: "Attest and prove",
-    body: "The transaction hash, report hash, and attestation hash are linked into the proof trail.",
+    title: "Record and verify",
+    body: "The transaction hash and report hash are retained in the TreasuryOS execution record.",
     icon: RadioTower,
   },
 ];
@@ -88,32 +88,31 @@ const guardrails = [
 export default function HowItWorksPage() {
   return (
     <div className="min-h-screen bg-zinc-950">
-      <div className="border-b border-white/10 bg-zinc-950/90">
-        <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <div className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3 mb-5">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-violet-500 shadow-[0_0_28px_rgba(99,102,241,0.35)]">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 shadow-sm">
               <ShieldCheck className="h-5 w-5 text-white" />
             </span>
-            <span className="text-xl font-bold text-zinc-100">TreasuryOS</span>
+            <span className="text-xl font-bold text-slate-950">TreasuryOS</span>
           </div>
           <div className="grid gap-8 lg:grid-cols-[1fr_380px] lg:items-end">
             <div>
               <Badge variant="outline" className="mb-5 border-cyan-400/30 text-cyan-300">
                 How it works
               </Badge>
-              <h1 className="max-w-4xl text-4xl font-semibold leading-tight text-white sm:text-5xl">
-                From treasury intelligence to owner-verified execution proof
+              <h1 className="max-w-4xl text-4xl font-semibold leading-tight text-slate-950 sm:text-5xl">
+                Understand any treasury. Execute only your own.
               </h1>
               <p className="mt-5 max-w-3xl text-base leading-7 text-zinc-400">
-                TreasuryOS has two distinct operating modes. Analyze mode is
-                read-only treasury intelligence. Manage mode unlocks execution
-                only after wallet ownership is verified, simulation passes, and
-                the user explicitly submits the transaction.
+                Inspect any supported public treasury without connecting a wallet.
+                A wallet is required only for execution, and it must own the
+                treasury currently being viewed.
               </p>
             </div>
 
-            <div className="rounded-xl border border-cyan-400/25 bg-cyan-400/5 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-cyan-200">
+            <div className="rounded-xl border border-violet-200 bg-violet-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
                 Current execution scope — Sepolia only
               </p>
               <div className="mt-4 grid gap-3">
@@ -127,7 +126,7 @@ export default function HowItWorksPage() {
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <Button asChild size="lg">
               <Link href="/dashboard">
-                Open Command Center
+                Open portfolio
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </Button>
@@ -141,16 +140,16 @@ export default function HowItWorksPage() {
       <main className="mx-auto max-w-7xl space-y-8 px-4 py-8 sm:px-6 lg:px-8">
         <section className="grid gap-5 lg:grid-cols-2">
           <ModePanel
-            eyebrow="Analyze mode"
-            title="Inspect any treasury without connecting a wallet"
-            body="Use this when you want public, read-only intelligence: positions, risk score, stress scenarios, AI brief, and report hash."
+            eyebrow="Public analysis"
+            title="Inspect any public treasury"
+            body="Enter any supported treasury address. Overview, Positions, risk, stress scenarios, and Activity are public and read-only."
             icon={ScanLine}
             steps={analyzeFlow}
           />
           <ModePanel
-            eyebrow="Manage mode"
+            eyebrow="Owner-only execution"
             title="Operate only the treasury your wallet owns"
-            body="Use this when the connected wallet is the scanned wallet. This is the operational walkthrough; the separate proof pipeline below records verifiable evidence after the workflow completes."
+            body="When the connected wallet matches the scanned treasury, you can create a plan, approve it, simulate it, sign intent, and explicitly submit the transaction."
             icon={ShieldCheck}
             steps={manageFlow}
             highlighted
@@ -293,9 +292,9 @@ function ProofPipeline() {
   const steps = [
     { label: "Report", icon: FileJson, description: "Risk report generated and hashed" },
     { label: "Simulate", icon: Waves, description: "Wallet-context simulation executed" },
-    { label: "Publish", icon: RadioTower, description: "Proof published to KeeperHub" },
-    { label: "Attest", icon: BadgeCheck, description: "Onchain attestation confirmed" },
-    { label: "Proof", icon: Sparkles, description: "Verifiable proof trail complete" },
+    { label: "Execute", icon: RadioTower, description: "Wallet transaction submitted" },
+    { label: "Verify", icon: BadgeCheck, description: "Receipt and calldata verified" },
+    { label: "Record", icon: Sparkles, description: "TreasuryOS execution record saved" },
   ];
 
   return (

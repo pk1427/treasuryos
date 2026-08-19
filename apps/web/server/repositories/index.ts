@@ -1,4 +1,4 @@
-import { and, desc, eq, ne, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, ne, or } from "drizzle-orm";
 import { requireDb, schema } from "@/lib/db";
 import type { RiskLevel, DecisionStatus, ExecutionStatus } from "@/types";
 
@@ -247,74 +247,6 @@ export class ExecutionRepository {
   }
 }
 
-export class AttestationRepository {
-  async upsert(data: {
-    network: string;
-    treasury: string;
-    reportHash: string;
-    publisher: string;
-    txHash: string;
-    blockNumber: string;
-    timestamp: Date;
-  }) {
-    const db = requireDb();
-    const [attestation] = await db
-      .insert(schema.attestations)
-      .values({
-        network: data.network,
-        treasury: data.treasury.toLowerCase(),
-        reportHash: data.reportHash.toLowerCase(),
-        publisher: data.publisher.toLowerCase(),
-        txHash: data.txHash.toLowerCase(),
-        blockNumber: data.blockNumber,
-        timestamp: data.timestamp,
-      })
-      .onConflictDoUpdate({
-        target: schema.attestations.txHash,
-        set: {
-          network: data.network,
-          treasury: data.treasury.toLowerCase(),
-          reportHash: data.reportHash.toLowerCase(),
-          publisher: data.publisher.toLowerCase(),
-          blockNumber: data.blockNumber,
-          timestamp: data.timestamp,
-        },
-      })
-      .returning();
-    return attestation;
-  }
-
-  async list({
-    limit = 25,
-    offset = 0,
-    network,
-    treasury,
-  }: {
-    limit?: number;
-    offset?: number;
-    network?: string;
-    treasury?: string;
-  } = {}) {
-    const db = requireDb();
-    const filters: SQL[] = [];
-    let query = db
-      .select()
-      .from(schema.attestations)
-      .$dynamic()
-      .orderBy(desc(schema.attestations.timestamp))
-      .limit(limit)
-      .offset(offset);
-
-    if (network) filters.push(eq(schema.attestations.network, network));
-    if (treasury) {
-      filters.push(eq(schema.attestations.treasury, treasury.toLowerCase()));
-    }
-    if (filters.length > 0) query = query.where(and(...filters));
-
-    return query;
-  }
-}
-
 export class ExecutionPlanRepository {
   async create(data: {
     walletAddress: string;
@@ -456,6 +388,7 @@ export class ExecutionHistoryRepository {
     planId: string;
     wallet: string;
     txHash: string;
+    reportHash: string;
     chain: string;
     protocol: string;
     status: string;
@@ -467,6 +400,7 @@ export class ExecutionHistoryRepository {
         planId: data.planId,
         wallet: data.wallet.toLowerCase(),
         txHash: data.txHash.toLowerCase(),
+        reportHash: data.reportHash.toLowerCase(),
         chain: data.chain,
         protocol: data.protocol,
         status: data.status,
@@ -477,6 +411,7 @@ export class ExecutionHistoryRepository {
           status: data.status,
           protocol: data.protocol,
           chain: data.chain,
+          reportHash: data.reportHash.toLowerCase(),
         },
       })
       .returning();
@@ -491,12 +426,20 @@ export class ExecutionHistoryRepository {
       .where(eq(schema.executionHistory.wallet, wallet.toLowerCase()))
       .orderBy(desc(schema.executionHistory.createdAt));
   }
+
+  async listPublic(limit = 50) {
+    const db = requireDb();
+    return db
+      .select()
+      .from(schema.executionHistory)
+      .orderBy(desc(schema.executionHistory.createdAt))
+      .limit(limit);
+  }
 }
 
 export const treasuryRepo = new TreasuryRepository();
 export const analysisRepo = new AnalysisRepository();
 export const decisionRepo = new DecisionRepository();
 export const executionRepo = new ExecutionRepository();
-export const attestationRepo = new AttestationRepository();
 export const executionPlanRepo = new ExecutionPlanRepository();
 export const executionHistoryRepo = new ExecutionHistoryRepository();

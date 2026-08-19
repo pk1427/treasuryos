@@ -11,7 +11,7 @@
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Stage](https://img.shields.io/badge/Stage-1_Complete-success)
 
-Analyze treasury risk, generate deterministic execution plans, execute supported onchain actions, and publish verifiable proof.
+Analyze treasury risk, generate deterministic execution plans, execute supported onchain actions, and retain verified execution records.
 
 [Live Demo](https://treasuryos-web.vercel.app) • [Architecture](#architecture) • [Features](#features) • [Quick Start](#quick-start)
 
@@ -23,7 +23,7 @@ Analyze treasury risk, generate deterministic execution plans, execute supported
 
 TreasuryOS is an AI-native treasury operating system for onchain organizations.
 
-It combines treasury analytics, deterministic execution planning, and verifiable onchain attestations into a single workflow.
+It combines treasury analytics, deterministic execution planning, and verified transaction records into a single workflow.
 
 TreasuryOS is designed around a simple operating model:
 
@@ -32,7 +32,7 @@ Scan
 → Analyze
 → Plan
 → Execute
-→ Attest
+→ Verify
 ```
 
 Unlike autonomous AI agents, TreasuryOS is **non-custodial**.
@@ -97,7 +97,7 @@ View wallet balances and protocol positions discovered across supported integrat
 
 ## Proof Trail
 
-Every completed execution is linked to a report hash, transaction receipt, and KeeperHub attestation for a verifiable audit trail.
+Every completed execution is linked to a report hash and verified transaction receipt for an inspectable audit trail.
 
 ![Proof Trail](docs/images/Trail-Page.png)
 
@@ -127,12 +127,11 @@ Every completed execution is linked to a report hash, transaction receipt, and K
 
 ---
 
-## Verifiable Proof
+## Execution Verification
 
 - Report hashing
-- KeeperHub integration
-- Onchain attestation
-- Proof history
+- Transaction verification
+- Execution history
 - Audit trail
 
 ---
@@ -150,7 +149,7 @@ Current capabilities include:
 - Recommendation Engine
 - Execution Planner
 - Execution Adapter Registry
-- KeeperHub Attestations
+- Execution verification records
 
 Current network:
 
@@ -197,7 +196,7 @@ Execution
 Receipt Verification
         │
         ▼
-KeeperHub Attestation
+Execution History
 ```
 
 ---
@@ -234,7 +233,7 @@ Execute Transaction
 Verify Receipt
         │
         ▼
-Publish Attestation
+Save Execution Record
 ```
 
 TreasuryOS never executes autonomously.
@@ -275,7 +274,7 @@ The connected wallet remains the only transaction signer.
 | Smart Contracts | Solidity |
 | Database | PostgreSQL, Drizzle ORM |
 | AI | OpenAI |
-| Attestation | KeeperHub |
+| Verification | Viem receipt verification |
 
 ---
 
@@ -310,10 +309,6 @@ DATABASE_URL=
 
 OPENAI_API_KEY=
 
-KEEPERHUB_API_KEY=
-
-ATTESTATION_REGISTRY_ADDRESS=
-
 NEXT_PUBLIC_CHAIN=sepolia
 ```
 
@@ -346,7 +341,6 @@ packages/
 ├── indexer/
 ├── risk-engine/
 ├── simulator/
-├── attestation/
 └── shared/
 ```
 
@@ -363,7 +357,7 @@ packages/
 - Uniswap Position Adapter
 - Uniswap Execution Adapter
 - Execution Planner
-- KeeperHub Attestations
+- Execution verification records
 
 ---
 

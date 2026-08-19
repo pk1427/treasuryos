@@ -13,7 +13,6 @@
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
-    "@treasuryos/attestation": "0.1.0",
     "@treasuryos/indexer": "0.1.0",
     "@treasuryos/risk-engine": "0.1.0",
     "@treasuryos/shared": "0.1.0",

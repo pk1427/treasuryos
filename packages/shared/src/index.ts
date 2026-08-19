@@ -140,21 +140,6 @@ export type AaveAccountSummary = {
   rewardsSource: "live" | "not-supported";
 };
 
-export type AttestationSimulation = {
-  ok: boolean;
-  status: string;
-  executionId?: string;
-  message?: string;
-  gasEstimate?: string;
-};
-
-export type AttestationResult = {
-  executionId: string;
-  status: string;
-  transactionHash?: string;
-  transactionLink?: string;
-};
-
 export type UniswapPositionMetadata = {
   positionType: string;
   tokenId: string;

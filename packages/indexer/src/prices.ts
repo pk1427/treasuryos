@@ -13,7 +13,7 @@ import { publicClient } from "./client";
  * The USDC/USD, DAI/USD and USDT/USD Sepolia feed addresses could not be
  * confirmed reliably (Chainlink's address table renders client-side and
  * isn't scrapable), and wrong contract addresses would silently produce
- * wrong attestation data — worse than not having them. Copy the correct
+ * wrong treasury data — worse than not having them. Copy the correct
  * addresses from https://docs.chain.link/data-feeds/price-feeds/addresses
  * (Sepolia Testnet section) and paste them into CHAINLINK_FEEDS_SEPOLIA
  * below. Until then, those symbols fall back to an explicit $1 peg (see
