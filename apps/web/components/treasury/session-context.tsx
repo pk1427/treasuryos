@@ -48,10 +48,14 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
   const [analyzedAddress, setAnalyzedAddress] = useState("");
   const [reportResponse, setReportResponse] = useState<ReportResponse | null>(null);
   const [riskV2, setRiskV2] = useState<RiskReportV2 | null>(null);
+  const [restored, setRestored] = useState(false);
 
   useEffect(() => {
     const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
+    if (!raw) {
+      window.queueMicrotask(() => setRestored(true));
+      return;
+    }
 
     try {
       const stored = JSON.parse(raw) as StoredSession;
@@ -60,9 +64,11 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
         setAnalyzedAddress(stored.analyzedAddress ?? "");
         setReportResponse(stored.reportResponse ?? null);
         setRiskV2(stored.riskV2 ?? null);
+        setRestored(true);
       });
     } catch {
       window.localStorage.removeItem(STORAGE_KEY);
+      window.queueMicrotask(() => setRestored(true));
     }
   }, []);
 
@@ -89,6 +95,7 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
   }, [wallet.address, mode, analyzedAddress, reportResponse?.report.address]);
 
   useEffect(() => {
+    if (!restored) return;
     const stored: StoredSession = {
       mode,
       analyzedAddress,
@@ -101,6 +108,7 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
     mode,
     reportResponse,
     riskV2,
+    restored,
   ]);
 
   const isOwnerVerified = useMemo(() => {

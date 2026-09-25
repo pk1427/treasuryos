@@ -87,32 +87,32 @@ const guardrails = [
 
 export default function HowItWorksPage() {
   return (
-    <div className="min-h-screen bg-zinc-950">
-      <div className="border-b border-slate-200 bg-white">
+    <div className="min-h-screen bg-transparent">
+      <div className="border-b border-border bg-card">
         <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="flex items-center gap-3 mb-5">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 shadow-sm">
-              <ShieldCheck className="h-5 w-5 text-white" />
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-sm">
+              <ShieldCheck className="h-5 w-5 text-primary-foreground" />
             </span>
-            <span className="text-xl font-bold text-slate-950">TreasuryOS</span>
+            <span className="text-xl font-bold text-foreground font-display">TreasuryOS</span>
           </div>
           <div className="grid gap-8 lg:grid-cols-[1fr_380px] lg:items-end">
             <div>
-              <Badge variant="outline" className="mb-5 border-cyan-400/30 text-cyan-300">
+              <Badge variant="outline" className="mb-5 border-accent/30 text-primary">
                 How it works
               </Badge>
-              <h1 className="max-w-4xl text-4xl font-semibold leading-tight text-slate-950 sm:text-5xl">
+              <h1 className="max-w-4xl text-4xl font-semibold leading-tight text-foreground sm:text-5xl">
                 Understand any treasury. Execute only your own.
               </h1>
-              <p className="mt-5 max-w-3xl text-base leading-7 text-zinc-400">
+              <p className="mt-5 max-w-3xl text-base leading-7 text-muted-foreground">
                 Inspect any supported public treasury without connecting a wallet.
                 A wallet is required only for execution, and it must own the
                 treasury currently being viewed.
               </p>
             </div>
 
-            <div className="rounded-xl border border-violet-200 bg-violet-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-violet-700">
+            <div className="rounded-xl border border-accent/20 privacy-card p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 Current execution scope — Sepolia only
               </p>
               <div className="mt-4 grid gap-3">
@@ -131,7 +131,7 @@ export default function HowItWorksPage() {
               </Link>
             </Button>
             <Button asChild variant="outline" size="lg">
-              <Link href="/proof-attestation">View Proof History</Link>
+              <Link href="/verification">View Proof History</Link>
             </Button>
           </div>
         </div>
@@ -157,17 +157,17 @@ export default function HowItWorksPage() {
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
-          <Card className="rounded-xl bg-zinc-900/70">
+          <Card className="rounded-xl privacy-card">
             <CardHeader className="pb-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-400/10 text-emerald-300">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-400/10 text-emerald-400">
                   <Lock className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Execution guardrails
                   </p>
-                  <h2 className="text-lg font-semibold text-white">
+                  <h2 className="text-lg font-semibold text-foreground">
                     What must be true before funds can move
                   </h2>
                 </div>
@@ -176,8 +176,8 @@ export default function HowItWorksPage() {
             <CardContent>
               <div className="grid gap-3">
                 {guardrails.map((item) => (
-                  <div key={item} className="flex items-start gap-3 text-sm text-zinc-300">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
+                  <div key={item} className="flex items-start gap-3 text-sm text-muted-foreground">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />
                     {item}
                   </div>
                 ))}
@@ -185,17 +185,17 @@ export default function HowItWorksPage() {
             </CardContent>
           </Card>
 
-          <Card className="rounded-xl bg-zinc-900/70 overflow-hidden">
-            <CardHeader className="border-b border-white/10">
+          <Card className="rounded-xl privacy-card overflow-hidden">
+            <CardHeader className="border-b border-border">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-400/10 text-cyan-300">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary text-primary">
                   <FileJson className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Proof pipeline
                   </p>
-                  <h2 className="text-lg font-semibold text-white">
+                  <h2 className="text-lg font-semibold text-foreground">
                     A distinct verification record after execution
                   </h2>
                 </div>
@@ -229,8 +229,8 @@ function ModePanel({
   return (
     <Card
       className={cn(
-        "rounded-xl bg-zinc-900/70",
-        highlighted ? "border-cyan-400/30" : "border-white/10"
+        "rounded-xl privacy-card",
+        highlighted ? "border-accent/30" : "border-border"
       )}
     >
       <CardHeader className="pb-4">
@@ -238,17 +238,17 @@ function ModePanel({
           <div
             className={cn(
               "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg",
-              highlighted ? "bg-cyan-400/10 text-cyan-300" : "bg-white/[0.04] text-zinc-300"
+              highlighted ? "bg-secondary text-primary" : "bg-muted/20 text-muted-foreground"
             )}
           >
             <Icon className="h-5 w-5" />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {eyebrow}
             </p>
-            <h2 className="mt-1 text-xl font-semibold text-white">{title}</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">{body}</p>
+            <h2 className="mt-1 text-xl font-semibold text-foreground">{title}</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{body}</p>
           </div>
         </div>
       </CardHeader>
@@ -273,16 +273,16 @@ function FlowStep({
   const Icon = step.icon;
 
   return (
-    <div className="grid gap-3 rounded-lg border border-white/10 bg-zinc-950/50 p-3 sm:grid-cols-[36px_1fr]">
-      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.04] text-cyan-300">
+    <div className="grid gap-3 rounded-lg border privacy-card sm:grid-cols-[36px_1fr]">
+      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-muted/20 text-primary">
         <Icon className="h-4 w-4" />
       </div>
       <div>
-        <p className="font-mono text-xs uppercase tracking-wide text-zinc-500">
+        <p className="font-mono-ui text-xs uppercase tracking-wide text-muted-foreground">
           {String(index + 1).padStart(2, "0")}
         </p>
-        <p className="mt-1 text-sm font-medium text-zinc-100">{step.title}</p>
-        <p className="mt-1 text-sm leading-6 text-zinc-500">{step.body}</p>
+        <p className="mt-1 text-sm font-medium text-foreground">{step.title}</p>
+        <p className="mt-1 text-sm leading-6 text-muted-foreground">{step.body}</p>
       </div>
     </div>
   );
@@ -298,19 +298,19 @@ function ProofPipeline() {
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-5 gap-px bg-white/10">
+    <div className="grid grid-cols-1 sm:grid-cols-5 gap-px privacy-card">
       {steps.map((step, index) => {
         const Icon = step.icon;
         return (
-          <div key={step.label} className="bg-zinc-950 p-4">
+          <div key={step.label} className="bg-muted/10 p-4">
             <div className="flex items-center justify-between gap-3">
-              <Icon className="h-4 w-4 text-cyan-300" />
-              <span className="font-mono text-xs text-zinc-600">
+              <Icon className="h-4 w-4 text-primary" />
+              <span className="font-mono-ui text-xs text-muted-foreground">
                 {String(index + 1).padStart(2, "0")}
               </span>
             </div>
-            <p className="mt-3 text-sm font-medium text-zinc-100">{step.label}</p>
-            <p className="mt-1 text-xs text-zinc-500">{step.description}</p>
+            <p className="mt-3 text-sm font-medium text-foreground">{step.label}</p>
+            <p className="mt-1 text-xs text-muted-foreground">{step.description}</p>
           </div>
         );
       })}
@@ -329,8 +329,8 @@ function ScopeRow({
 }) {
   return (
     <div className="grid grid-cols-[88px_1fr] gap-3 text-sm">
-      <span className="text-zinc-500">{label}</span>
-      <span className={tone === "success" ? "text-emerald-300" : "text-zinc-300"}>
+      <span className="text-muted-foreground">{label}</span>
+      <span className={tone === "success" ? "text-emerald-400" : "text-muted-foreground"}>
         {value}
       </span>
     </div>

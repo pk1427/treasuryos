@@ -1,5 +1,10 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { ToastProvider } from "@/components/ui/toast";
+import { WalletProvider } from "@/components/wallet/context";
+import { TreasurySessionProvider } from "@/components/treasury/session-context";
+import { PublicNavbar } from "@/components/treasury/public-navbar";
+import { BackgroundEffects } from "@/components/treasury/background-effects";
 
 export const metadata: Metadata = {
   title: "TreasuryOS - DeFi Treasury Risk Intelligence",
@@ -14,8 +19,20 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full bg-[#fbfbfd] text-[#101828]">
-        {children}
+      <body className="min-h-full">
+        <div className="nocturne-shell">
+          <ToastProvider>
+            <WalletProvider>
+              <TreasurySessionProvider>
+                <PublicNavbar />
+                <BackgroundEffects />
+                <div className="relative z-10 pt-28">
+                  {children}
+                </div>
+              </TreasurySessionProvider>
+            </WalletProvider>
+          </ToastProvider>
+        </div>
       </body>
     </html>
   );
