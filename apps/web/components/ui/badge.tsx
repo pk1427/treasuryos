@@ -1,32 +1,38 @@
 import { cn } from "@/lib/utils";
 import type { RiskLevel } from "@/types";
+import { severityClasses } from "@/components/ui/severity";
 
-const variants: Record<RiskLevel, string> = {
-  low: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  medium: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  high: "bg-orange-500/10 text-orange-400 border-orange-500/20",
-  critical: "bg-red-500/10 text-red-400 border-red-500/20",
+type BadgeVariant = RiskLevel | "default" | "secondary" | "outline" | "destructive" | "ghost";
+
+const base = cn(
+  "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize",
+  "transition-shadow duration-200",
+);
+
+const variants: Record<Exclude<BadgeVariant, RiskLevel>, string> = {
+  default: "border border-border bg-muted text-muted-foreground",
+  secondary: "border-transparent bg-secondary text-secondary-foreground",
+  outline: "border border-input text-foreground",
+  destructive:
+    "border-transparent bg-destructive text-destructive-foreground",
+  ghost: "border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground",
 };
 
-interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: RiskLevel | "default" | "outline";
+export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
+  variant?: BadgeVariant;
 }
 
 export function Badge({ className, variant = "default", ...props }: BadgeProps) {
-  const style =
-    variant === "default"
-      ? "bg-zinc-800 text-zinc-300 border-zinc-700"
-      : variant === "outline"
-        ? "border border-zinc-700 text-zinc-400"
-        : variants[variant];
+  const isRisk =
+    variant === "low" || variant === "medium" || variant === "high" || variant === "critical";
+
+  const style = isRisk
+    ? severityClasses(variant)
+    : variants[variant as keyof typeof variants];
 
   return (
     <span
-      className={cn(
-        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize",
-        style,
-        className
-      )}
+      className={cn(base, style, className)}
       {...props}
     />
   );

@@ -4,22 +4,53 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 disabled:pointer-events-none disabled:opacity-50",
+  cn(
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap",
+    "rounded-lg text-sm font-medium",
+    "transition-all duration-200 ease-out",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+    "focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+    "disabled:pointer-events-none disabled:opacity-50",
+    "[&:active]:scale-95 select-none",
+  ),
   {
     variants: {
       variant: {
-        default:
-          "bg-violet-600 text-white shadow-sm hover:bg-violet-700",
-        secondary: "bg-violet-50 text-violet-700 hover:bg-violet-100",
-        outline: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
-        ghost: "text-slate-600 hover:bg-slate-100",
-        destructive: "bg-red-600 text-white hover:bg-red-500",
+        default: cn(
+          "relative isolate overflow-hidden",
+          "bg-primary text-primary-foreground",
+          "shadow-md",
+          "before:absolute before:inset-0 before:-top-1/2",
+          "before:translate-y-1/2 before:opacity-50",
+          "before:bg-gradient-to-b before:from-white/40 before:to-transparent",
+          "before:rounded-full before:blur before:saturate-150",
+          "hover:shadow-lg hover:brightness-110",
+          "active:scale-95",
+        ),
+        secondary: cn(
+          "bg-secondary text-secondary-foreground",
+          "hover:bg-secondary/80",
+        ),
+        outline: cn(
+          "border border-input bg-background text-foreground",
+          "hover:bg-accent hover:text-accent-foreground",
+        ),
+        ghost: cn(
+          "text-muted-foreground",
+          "hover:bg-accent hover:text-accent-foreground",
+        ),
+        destructive: cn(
+          "bg-destructive text-destructive-foreground",
+          "hover:bg-destructive/90",
+        ),
       },
       size: {
         default: "h-10 px-4 py-2",
         sm: "h-8 rounded-md px-3 text-xs",
-        lg: "h-12 rounded-lg px-8",
+        lg: "h-12 rounded-xl px-8",
         icon: "h-10 w-10",
+        "icon-sm": "h-8 w-8 rounded-md",
+        "icon-lg": "h-12 w-12 rounded-xl",
       },
     },
     defaultVariants: {

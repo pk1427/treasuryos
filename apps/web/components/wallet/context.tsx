@@ -26,12 +26,17 @@ type WalletState = {
 const WalletContext = createContext<WalletState | null>(null);
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const [address, setAddress] = useState<string | null>(() =>
-    typeof window === "undefined" ? null : window.sessionStorage.getItem(WALLET_ADDRESS_KEY)
-  );
+  const [address, setAddress] = useState<string | null>(null);
   const [chainId, setChainId] = useState<number | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const storedAddress = window.sessionStorage.getItem(WALLET_ADDRESS_KEY);
+    if (storedAddress) {
+      window.queueMicrotask(() => setAddress(storedAddress));
+    }
+  }, []);
 
   useEffect(() => {
     if (window.sessionStorage.getItem(WALLET_SESSION_KEY) !== "connected") return;

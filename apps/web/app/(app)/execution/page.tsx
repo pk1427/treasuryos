@@ -10,7 +10,6 @@ import {
   Loader2,
   RefreshCw,
   Send,
-  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -83,6 +82,7 @@ export default function ExecutionPage() {
 
   async function loadPlan() {
     if (!report?.address) return;
+    if (loading) return;
     setLoading(true);
     setError(null);
     setPlan(null);
@@ -168,9 +168,9 @@ export default function ExecutionPage() {
     : 0;
 
   return (
-    <div className="min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-transparent">
       <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:px-8">
-        <h1 className="mb-10 text-4xl font-semibold tracking-tight text-violet-700">Execution</h1>
+        <h1 className="mb-10 text-4xl font-semibold tracking-tight text-foreground font-display">Execution</h1>
         {locked && !mismatch ? (
           <LockedPanel onConnect={wallet.connect} />
         ) : locked && mismatch ? (
@@ -194,14 +194,14 @@ export default function ExecutionPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            <div className="flex gap-2 border-b border-white/10 pb-2">
+            <div className="flex gap-2 border-b border-border pb-2">
               <button
                 type="button"
                 className={cn(
                   "rounded-lg px-3 py-1.5 text-sm font-medium transition",
                   activeTab === "live"
-                    ? "bg-violet-50 text-violet-700"
-                    : "text-slate-500 hover:text-slate-900"
+                    ? "bg-secondary text-primary"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
                 onClick={() => setActiveTab("live")}
               >
@@ -212,8 +212,8 @@ export default function ExecutionPage() {
                 className={cn(
                   "rounded-lg px-3 py-1.5 text-sm font-medium transition",
                   activeTab === "history"
-                    ? "bg-violet-50 text-violet-700"
-                    : "text-slate-500 hover:text-slate-900"
+                    ? "bg-secondary text-primary"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
                 onClick={() => setActiveTab("history")}
               >
@@ -235,10 +235,10 @@ export default function ExecutionPage() {
               <ExecutionError error={error} onRetry={loadPlan} />
             ) : plan && plan.steps.length > 0 ? (
               <div className="space-y-6">
-                <section className="rounded-xl border border-violet-200 bg-violet-50/60 p-5">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-violet-700">Owner-controlled execution</p>
+                <section className="rounded-xl border border-accent/20 privacy-card p-5">
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-primary">Owner-controlled execution</p>
                   <WorkflowStepper steps={["Generate", "Approve", "Simulate", "Sign", "Execute"]} activeStep={planStatus === "SIGNED" ? "Execute" : planStatus === "APPROVED" ? simulation ? "Sign" : "Simulate" : "Approve"} completedThrough={planStatus === "SIGNED" ? 3 : planStatus === "APPROVED" ? simulation ? 2 : 1 : 0} />
-                  <p className="mt-4 text-sm text-slate-600">Each step creates a reviewable checkpoint. Only <strong>Execute</strong> opens a transaction prompt in your wallet.</p>
+                  <p className="mt-4 text-sm text-muted-foreground">Each step creates a reviewable checkpoint. Only <strong>Execute</strong> opens a transaction prompt in your wallet.</p>
                 </section>
                 <div className="flex flex-wrap items-center gap-2">
                   <StatusPill tone="success">Ownership verified</StatusPill>
@@ -343,15 +343,15 @@ export default function ExecutionPage() {
                   ) : null}
                 </div>
                 {plan.warnings && plan.warnings.length > 0 ? (
-                  <div className="space-y-1 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <div className="space-y-1 rounded-lg border border-border privacy-card p-3">
                     {plan.warnings.map((w, i) => (
-                      <p key={i} className="text-xs text-slate-600">{w}</p>
+                      <p key={i} className="text-xs text-muted-foreground">{w}</p>
                     ))}
                   </div>
                 ) : null}
                 {!isConnected ? (
                   <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
-                    <p className="text-sm text-amber-300">Connect the treasury owner&apos;s wallet to enable actions.</p>
+                    <p className="text-sm text-primary">Connect the treasury owner&apos;s wallet to enable actions.</p>
                   </div>
                 ) : !walletMatches ? (
                   <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
@@ -360,16 +360,16 @@ export default function ExecutionPage() {
                 ) : null}
               </div>
             ) : plan && plan.steps.length === 0 ? (
-              <Card className="rounded-xl bg-zinc-900/70">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="h-5 w-5 text-violet-300" />
-                    AI Action Planner
+    <Card className="rounded-xl privacy-card">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Activity className="h-5 w-5 text-primary" />
+          AI Action Planner
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm font-medium text-amber-200">No supported action is ready for this treasury.</p>
-                  <p className="mt-1 text-xs text-zinc-400">
+                  <p className="mb-3 text-xs font-medium text-muted-foreground">No supported action is ready for this treasury.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
                     The scan did not produce a deterministic Sepolia Uniswap V3 ETH ↔ USDC swap. Review the current holdings or regenerate after the treasury changes.
                   </p>
                   <Button onClick={loadPlan} className="mt-3" variant="outline" size="sm">
@@ -379,15 +379,15 @@ export default function ExecutionPage() {
                 </CardContent>
               </Card>
             ) : (
-              <Card className="rounded-xl bg-zinc-900/70">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="h-5 w-5 text-violet-300" />
-                    AI Action Planner
+    <Card className="rounded-xl privacy-card">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Activity className="h-5 w-5 text-primary" />
+          AI Action Planner
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-zinc-400">
+                  <p className="text-sm text-muted-foreground">
                     Build a reviewable, non-custodial plan from the current risk report. Generating a plan does not sign or submit a transaction.
                   </p>
                   <Button onClick={loadPlan} className="mt-4" variant="secondary">
@@ -421,59 +421,59 @@ function ExecutionTicket({
   const primaryStep = plan.steps[0];
 
   return (
-    <Card className="rounded-xl bg-zinc-900/70">
+    <Card className="rounded-xl privacy-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Activity className="h-5 w-5 text-violet-300" />
+          <Activity className="h-5 w-5 text-primary" />
           Pre-Trade Ticket
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <div>
-            <p className="text-xs uppercase text-zinc-500">Action</p>
-            <p className="mt-1 text-lg font-semibold text-zinc-100">
+            <p className="text-xs uppercase text-muted-foreground">Action</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">
               {primaryStep ? `${actionLabel(primaryStep.action)} ${primaryStep.fromAsset ?? primaryStep.asset ?? ""} → ${primaryStep.toAsset ?? ""}` : "No action"}
             </p>
           </div>
           <div>
-            <p className="text-xs uppercase text-zinc-500">Input</p>
-            <p className="mt-1 text-lg font-semibold text-zinc-100">
+            <p className="text-xs uppercase text-muted-foreground">Input</p>
+            <p className="mt-1 text-lg font-semibold text-foreground">
               {swapStep ? `${swapStep.amountToken ?? `${swapStep.amountUsd?.toFixed(2)} ${swapStep.fromAsset ?? ""}`}` : "—"}
             </p>
           </div>
           <div>
-            <p className="text-xs uppercase text-zinc-500">Estimated Output</p>
-            <p className="mt-1 text-lg font-semibold text-emerald-300">
+            <p className="text-xs uppercase text-muted-foreground">Estimated Output</p>
+            <p className="mt-1 text-lg font-semibold text-primary">
               {swapStep ? `~${swapStep.amountUsd ? swapStep.amountUsd.toLocaleString() : "—"} USDC` : "—"}
             </p>
           </div>
           <div>
-            <p className="text-xs uppercase text-zinc-500">Reason</p>
-            <p className="mt-1 text-sm text-zinc-300">{primaryStep?.reason ?? "—"}</p>
+            <p className="text-xs uppercase text-muted-foreground">Reason</p>
+            <p className="mt-1 text-sm text-secondary">{primaryStep?.reason ?? "—"}</p>
           </div>
         </div>
 
-        <div className="border-y border-slate-200 py-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Quote</p>
+        <div className="border-y border-border py-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Quote</p>
           <div className="mt-3 grid gap-4 sm:grid-cols-3">
             <div>
-              <p className="text-xs text-zinc-500">Est. output</p>
-              <p className="font-mono text-sm text-emerald-300">~{swapStep?.amountUsd?.toLocaleString() ?? "—"} USDC</p>
+              <p className="text-xs text-muted-foreground">Est. output</p>
+              <p className="font-mono text-sm text-primary">~{swapStep?.amountUsd?.toLocaleString() ?? "—"} USDC</p>
             </div>
             <div>
-              <p className="text-xs text-zinc-500">Min. received ({slippageBps / 100}% slippage)</p>
-              <p className="font-mono text-sm text-zinc-200">~{minReceived.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC</p>
+              <p className="text-xs text-muted-foreground">Min. received ({slippageBps / 100}% slippage)</p>
+              <p className="font-mono text-sm text-foreground">~{minReceived.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDC</p>
             </div>
             <div>
-              <p className="text-xs text-zinc-500">Network</p>
-              <p className="font-mono text-sm text-slate-600">Sepolia testnet</p>
+              <p className="text-xs text-muted-foreground">Network</p>
+              <p className="font-mono text-sm text-muted-foreground">Sepolia testnet</p>
             </div>
           </div>
         </div>
 
         <div>
-          <p className="mb-3 text-xs font-medium uppercase text-zinc-500">Preconditions</p>
+          <p className="mb-3 text-xs font-medium uppercase text-muted-foreground">Preconditions</p>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             <PreconditionCheck label="Wallet owner verified" passed={true} />
             <PreconditionCheck label="Report fresh" passed={planStatus !== "STALE"} />
@@ -484,9 +484,9 @@ function ExecutionTicket({
         </div>
 
         {plan.warnings && plan.warnings.length > 0 ? (
-          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-lg border border-border privacy-card p-3">
             {plan.warnings.map((w, i) => (
-              <p key={i} className="text-xs text-slate-600">{w}</p>
+              <p key={i} className="text-xs text-muted-foreground">{w}</p>
             ))}
           </div>
         ) : null}
@@ -501,25 +501,24 @@ function PreconditionCheck({ label, passed }: { label: string; passed: boolean }
       {passed ? (
         <CheckCircle2 className="h-4 w-4 text-emerald-400" />
       ) : (
-        <Lock className="h-4 w-4 text-zinc-600" />
+        <Lock className="h-4 w-4 text-muted-foreground" />
       )}
-      <span className={passed ? "text-zinc-300" : "text-zinc-500"}>{label}</span>
+      <span className={passed ? "text-secondary" : "text-muted-foreground"}>{label}</span>
     </div>
   );
 }
 
 function LockedPanel({ onConnect }: { onConnect: () => void }) {
   return (
-    <Card className="rounded-xl border-violet-200 bg-violet-50">
+    <Card className="rounded-xl border-accent/20 privacy-card">
       <CardContent className="flex items-start gap-3 p-6">
-        <Lock className="mt-0.5 h-5 w-5 text-violet-700" />
+        <Lock className="mt-0.5 h-5 w-5 text-primary" />
         <div>
-          <p className="font-medium text-slate-950">Connect the treasury owner to execute</p>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="font-medium text-foreground">Connect the treasury owner to execute</p>
+          <p className="mt-1 text-sm text-muted-foreground">
             Connect the wallet that owns the selected treasury to unlock execution planning.
           </p>
           <Button className="mt-3" variant="secondary" size="sm" onClick={onConnect}>
-            <Wallet className="h-4 w-4" />
             Connect Wallet
           </Button>
         </div>
@@ -530,15 +529,15 @@ function LockedPanel({ onConnect }: { onConnect: () => void }) {
 
 function MismatchedWalletPanel({ connectedWallet, analyzedAddress }: { connectedWallet: string | null; analyzedAddress: string }) {
   return (
-    <Card className="rounded-xl border-slate-200 bg-slate-50">
+    <Card className="rounded-xl border-accent/20 privacy-card">
       <CardContent className="flex items-start gap-3 p-6">
-        <Lock className="mt-0.5 h-5 w-5 text-slate-600" />
+        <Lock className="mt-0.5 h-5 w-5 text-primary" />
         <div>
-          <p className="font-medium text-slate-950">This wallet cannot execute for the selected treasury</p>
-          <p className="mt-1 text-sm text-zinc-400">
+          <p className="font-medium text-foreground">This wallet cannot execute for the selected treasury</p>
+          <p className="mt-1 text-sm text-muted-foreground">
             Connected wallet {shortenAddress(connectedWallet!)} does not own {shortenAddress(analyzedAddress)}.
           </p>
-          <p className="mt-2 text-xs text-zinc-500">
+          <p className="mt-2 text-xs text-muted-foreground">
             Execution is not forced — connect the wallet that controls this treasury to proceed.
           </p>
         </div>
@@ -552,14 +551,14 @@ function ExecutionConfirmation({ result, reportHash }: { result: { txHash: strin
     <Card className="rounded-2xl border-emerald-500/30 bg-emerald-500/10">
       <CardContent className="p-6">
         <div className="flex items-center gap-3 mb-4">
-          <CheckCircle2 className="h-6 w-6 text-emerald-400" />
-          <h2 className="text-xl font-semibold text-emerald-200">Execution Complete</h2>
+          <CheckCircle2 className="h-6 w-6 text-primary" />
+          <h2 className="text-xl font-semibold text-foreground">Execution Complete</h2>
         </div>
         <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-400">Transaction</span>
+            <span className="text-sm text-muted-foreground">Transaction</span>
             <div className="flex items-center gap-2">
-              <span className="font-mono text-xs text-zinc-300">{shortenHash(result.txHash)}</span>
+              <span className="font-mono text-xs text-secondary">{shortenHash(result.txHash)}</span>
               <Button asChild variant="ghost" size="icon" aria-label="View on Etherscan">
                 <a href={result.explorer} target="_blank" rel="noreferrer">
                   <ExternalLink className="h-4 w-4" />
@@ -568,13 +567,13 @@ function ExecutionConfirmation({ result, reportHash }: { result: { txHash: strin
             </div>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-sm text-zinc-400">Status</span>
+            <span className="text-sm text-muted-foreground">Status</span>
             <Badge variant="low" className="normal-case">{result.status}</Badge>
           </div>
           {reportHash ? (
             <div className="flex items-center justify-between">
-              <span className="text-sm text-zinc-400">Report Hash</span>
-              <span className="font-mono text-xs text-zinc-300">{shortenHash(reportHash)}</span>
+              <span className="text-sm text-muted-foreground">Report Hash</span>
+              <span className="font-mono text-xs text-secondary">{shortenHash(reportHash)}</span>
             </div>
           ) : null}
         </div>
@@ -583,7 +582,7 @@ function ExecutionConfirmation({ result, reportHash }: { result: { txHash: strin
             <a href="/stream">View treasury activity <ArrowRight className="h-4 w-4" /></a>
           </Button>
           <Button asChild variant="outline" size="sm">
-          <a href="/proof-attestation">View public proofs</a>
+          <a href="/verification">View public proofs</a>
           </Button>
         </div>
       </CardContent>
@@ -600,31 +599,31 @@ function BeforeAfterPanel({ ethExposureBefore, ethExposureAfter, usdcBalanceBefo
   deltaEth: number;
 }) {
   return (
-    <Card className="rounded-xl bg-zinc-900/70">
+    <Card className="rounded-xl privacy-card">
       <CardHeader>
         <CardTitle className="text-base">Before / After</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-lg border border-white/10 bg-zinc-950/50 p-4">
-            <p className="text-xs uppercase text-zinc-500">ETH Exposure</p>
+          <div className="rounded-lg border border-border privacy-card p-4">
+            <p className="text-xs uppercase text-muted-foreground">ETH Exposure</p>
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="font-mono text-sm text-zinc-400">{(ethExposureBefore * 100).toFixed(0)}%</span>
-              <span className="text-xs text-zinc-600">→</span>
-              <span className="font-mono text-sm text-emerald-300">{(ethExposureAfter * 100).toFixed(0)}%</span>
+              <span className="font-mono text-sm text-secondary">{(ethExposureBefore * 100).toFixed(0)}%</span>
+              <span className="text-xs text-muted-foreground">→</span>
+              <span className="font-mono text-sm text-primary">{(ethExposureAfter * 100).toFixed(0)}%</span>
             </div>
           </div>
-          <div className="rounded-lg border border-white/10 bg-zinc-950/50 p-4">
-            <p className="text-xs uppercase text-zinc-500">USDC Balance</p>
+          <div className="rounded-lg border border-border privacy-card p-4">
+            <p className="text-xs uppercase text-muted-foreground">USDC Balance</p>
             <div className="mt-2 flex items-baseline gap-2">
-              <span className="font-mono text-sm text-zinc-400">${usdcBalanceBefore.toLocaleString()}</span>
-              <span className="text-xs text-zinc-600">→</span>
-              <span className="font-mono text-sm text-emerald-300">${usdcBalanceAfter.toLocaleString()}</span>
+              <span className="font-mono text-sm text-secondary">${usdcBalanceBefore.toLocaleString()}</span>
+              <span className="text-xs text-muted-foreground">→</span>
+              <span className="font-mono text-sm text-primary">${usdcBalanceAfter.toLocaleString()}</span>
             </div>
           </div>
-          <div className="rounded-lg border border-white/10 bg-zinc-950/50 p-4">
-            <p className="text-xs uppercase text-zinc-500">Delta</p>
-            <p className="mt-2 font-mono text-sm text-emerald-300">
+          <div className="rounded-lg border border-border privacy-card p-4">
+            <p className="text-xs uppercase text-muted-foreground">Delta</p>
+            <p className="mt-2 font-mono text-sm text-primary">
               +${deltaUsd.toLocaleString()} USDC / −{deltaEth.toFixed(4)} ETH
             </p>
           </div>
@@ -640,15 +639,15 @@ function ProofOfExecution({ txHash, explorer, reportHash }: {
   reportHash?: string;
 }) {
   return (
-    <Card className="rounded-xl bg-zinc-900/70">
+    <Card className="rounded-xl privacy-card">
       <CardHeader>
         <CardTitle className="text-base">Proof of Execution</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-xs uppercase text-zinc-500">Transaction</span>
+          <span className="text-xs uppercase text-muted-foreground">Transaction</span>
           <div className="flex items-center gap-2">
-            <span className="font-mono text-xs text-zinc-300">{shortenHash(txHash)}</span>
+            <span className="font-mono text-xs text-secondary">{shortenHash(txHash)}</span>
             <Button asChild variant="ghost" size="icon" aria-label="View on Etherscan">
               <a href={explorer} target="_blank" rel="noreferrer">
                 <ExternalLink className="h-4 w-4" />
@@ -658,12 +657,12 @@ function ProofOfExecution({ txHash, explorer, reportHash }: {
         </div>
         {reportHash ? (
           <div className="flex items-center justify-between">
-            <span className="text-xs uppercase text-zinc-500">Report Hash</span>
-            <span className="font-mono text-xs text-zinc-300">{shortenHash(reportHash)}</span>
+            <span className="text-xs uppercase text-muted-foreground">Report Hash</span>
+            <span className="font-mono text-xs text-secondary">{shortenHash(reportHash)}</span>
           </div>
         ) : null}
         <Button asChild variant="secondary" size="sm">
-          <a href="/proof-attestation">View public proofs <ArrowRight className="h-4 w-4" /></a>
+          <a href="/verification">View public proofs <ArrowRight className="h-4 w-4" /></a>
         </Button>
       </CardContent>
     </Card>
@@ -699,21 +698,21 @@ function ExecutionHistory({
 }) {
   if (history.length === 0) {
     return (
-      <Card className="rounded-xl border-dashed border-zinc-700">
+      <Card className="rounded-xl border-dashed privacy-card">
         <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-          <Activity className="mb-3 h-8 w-8 text-zinc-600" />
-          <p className="text-sm text-zinc-500">No execution history yet. Execute a plan to see it here.</p>
+          <Activity className="mb-3 h-8 w-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">No execution history yet. Execute a plan to see it here.</p>
         </CardContent>
       </Card>
     );
   }
 
   return (
-    <Card className="rounded-xl bg-zinc-900/70">
+    <Card className="rounded-xl privacy-card">
       <CardContent className="p-0">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
-            <thead className="border-b border-white/10 text-xs uppercase text-zinc-500">
+            <thead className="border-b border-border text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="px-4 py-3 font-medium">Date</th>
                 <th className="px-4 py-3 font-medium">Action</th>
@@ -722,20 +721,20 @@ function ExecutionHistory({
                 <th className="px-4 py-3 font-medium">Public record</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/10">
+            <tbody className="divide-y divide-border">
               {history.map((entry) => (
-                <tr key={entry.txHash} className="bg-zinc-950/40">
-                  <td className="px-4 py-3 text-zinc-300">{entry.date}</td>
-                  <td className="px-4 py-3 text-zinc-200">{entry.action}</td>
+                <tr key={entry.txHash} className="bg-secondary/20">
+                  <td className="px-4 py-3 text-secondary">{entry.date}</td>
+                  <td className="px-4 py-3 text-foreground">{entry.action}</td>
                   <td className="px-4 py-3">
-                    <span className="font-mono text-xs text-zinc-300">{shortenHash(entry.txHash)}</span>
+                    <span className="font-mono text-xs text-secondary">{shortenHash(entry.txHash)}</span>
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant="low" className="normal-case">{entry.status}</Badge>
                   </td>
                   <td className="px-4 py-3">
                     <Button asChild variant="ghost" size="sm">
-                      <a href="/proof-attestation">View Proofs <ArrowRight className="h-4 w-4" /></a>
+                      <a href="/verification">View Proofs <ArrowRight className="h-4 w-4" /></a>
                     </Button>
                   </td>
                 </tr>
@@ -766,9 +765,9 @@ function StagedLoading({ steps }: { steps: string[] }) {
   }, [steps]);
 
   return (
-    <Card className="rounded-xl bg-zinc-900/70">
+    <Card className="rounded-xl privacy-card">
       <CardContent className="flex flex-col gap-3 p-6">
-        <div className="flex items-center gap-2 text-sm text-zinc-400">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
           {steps[currentStep] ?? "Preparing..."}
         </div>
@@ -776,7 +775,7 @@ function StagedLoading({ steps }: { steps: string[] }) {
           {steps.map((step, i) => (
             <div
               key={step}
-              className={cn("h-1 flex-1 rounded-full", i <= currentStep ? "bg-cyan-400" : "bg-zinc-800")}
+              className={cn("h-1 flex-1 rounded-full", i <= currentStep ? "bg-primary" : "bg-muted")}
             />
           ))}
         </div>
@@ -790,7 +789,7 @@ function ExecutionError({ error, onRetry }: { error: string; onRetry: () => void
     <Card className="rounded-xl border-red-500/30 bg-red-500/10">
       <CardContent className="p-6">
         <p className="text-sm text-red-400">{error}</p>
-        <p className="mt-2 text-xs text-zinc-500">
+        <p className="mt-2 text-xs text-muted-foreground">
           If funds were moved, check your wallet and the transaction on Etherscan. If not, review the error and retry.
         </p>
         <Button onClick={onRetry} className="mt-3" variant="outline" size="sm">
