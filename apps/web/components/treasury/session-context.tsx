@@ -75,7 +75,7 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const walletAddress = wallet.address;
 
-    if (!walletAddress || mode !== "analyze") return;
+    if (!walletAddress) return;
 
     const scanned = reportResponse?.report.address ?? analyzedAddress;
 
@@ -87,7 +87,7 @@ export function TreasurySessionProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (walletAddress.toLowerCase() === scanned.toLowerCase()) {
+    if (walletAddress.toLowerCase() === scanned.toLowerCase() && mode !== "manage") {
       window.queueMicrotask(() => {
         setMode("manage");
       });

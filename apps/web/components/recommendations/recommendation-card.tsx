@@ -14,7 +14,7 @@ export function RecommendationCard({
   ctaHref?: string;
 }) {
   return (
-    <div className="rounded-2xl border-0 bg-card p-6">
+    <div className="flex h-full flex-col rounded-2xl bg-card p-5 shadow-[0_16px_36px_-28px_rgba(0,0,0,0.9)] sm:p-6">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-2">
           <span
@@ -30,7 +30,7 @@ export function RecommendationCard({
         </div>
       </div>
 
-      <div className="mt-4 space-y-4">
+      <div className="mt-4 flex-1 space-y-4">
         <Block label="Risk finding" value={rec.action} />
         {currentState ? (
           <Block label="Current state" value={currentState} />
@@ -54,7 +54,7 @@ export function RecommendationCard({
         </div>
       </div>
 
-      <div className="mt-5">
+      <div className="mt-6 pt-1">
         <Link href={ctaHref}>
           <Button size="sm">
             Review Action <ArrowRight className="h-4 w-4" />
