@@ -17,7 +17,7 @@ export function RiskOverview({
 
   return (
     <div className="space-y-6">
-      <div className="rounded-2xl border border-border privacy-card p-6">
+      <div className="rounded-2xl bg-card p-6 shadow-[0_16px_36px_-28px_rgba(0,0,0,0.9)]">
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
           <ScoreDial score={score} rating={rating} />
           <div className="flex-1">
@@ -38,14 +38,14 @@ export function RiskOverview({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-border privacy-card p-6">
+      <div className="rounded-2xl bg-card p-6 shadow-[0_16px_36px_-28px_rgba(0,0,0,0.9)]">
         <h3 className="text-sm font-semibold text-foreground font-display">Key risk factors</h3>
         <div className="mt-4">
           <RiskFactorList factors={factors} />
         </div>
       </div>
 
-      <div className="rounded-2xl border border-border privacy-card p-6">
+      <div className="rounded-2xl bg-card p-6 shadow-[0_16px_36px_-28px_rgba(0,0,0,0.9)]">
         <h3 className="text-sm font-semibold text-foreground font-display">Stress scenarios</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Projected value under adverse conditions, using current on-chain

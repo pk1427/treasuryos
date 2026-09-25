@@ -182,7 +182,7 @@ export function V1Overview() {
 
   return (
     <div className="relative z-10 min-h-screen bg-transparent">
-      <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+      <main className="mx-auto max-w-6xl px-4 pb-16 pt-6 sm:px-6 sm:pt-8 lg:px-8">
         {reportState === "loading" ? (
           <StagedScanBanner activeStep={loadingCopy} />
         ) : error ? (
@@ -246,7 +246,6 @@ function PortfolioComposition({
   refreshing: boolean;
 }) {
   const session = useTreasurySession();
-  const network = process.env.NEXT_PUBLIC_CHAIN ?? "sepolia";
   const positions = report.snapshot.positions;
 
   const ethExposure = useMemo(() => {
@@ -261,10 +260,9 @@ function PortfolioComposition({
   const recommendations = riskV2?.recommendations ?? [];
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-12">
       <TreasuryHeader
         address={report.address}
-        network={network}
         totalValueUsd={report.snapshot.totalValueUsd}
         riskScore={riskV2?.compositeRisk.score}
         riskRating={riskV2?.compositeRisk.rating}
@@ -276,15 +274,15 @@ function PortfolioComposition({
 
       <section>
         <h2 className="mb-3 text-xs font-semibold uppercase tracking-widest text-muted-foreground">Portfolio</h2>
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="rounded-xl border-0 bg-card p-4">
+        <div className="grid items-start gap-5 lg:grid-cols-3">
+          <div className="self-start rounded-2xl bg-card p-5 shadow-[0_16px_36px_-28px_rgba(0,0,0,0.9)]">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Asset Allocation</h3>
             <AssetAllocation
               positions={positions}
               totalValueUsd={report.snapshot.totalValueUsd}
             />
           </div>
-          <div className="rounded-xl border-0 bg-card p-4">
+          <div className="self-start rounded-2xl bg-card p-5 shadow-[0_16px_36px_-28px_rgba(0,0,0,0.9)]">
             <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Protocol Allocation</h3>
             <ProtocolAllocation
               positions={positions}

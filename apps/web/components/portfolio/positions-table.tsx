@@ -30,7 +30,7 @@ export function PositionsTable({
   const sorted = [...positions].sort((a, b) => b.amountUsd - a.amountUsd);
 
   return (
-    <div className="overflow-x-auto rounded-2xl border border-border privacy-card">
+    <div className="overflow-x-auto rounded-2xl bg-card shadow-[0_16px_36px_-28px_rgba(0,0,0,0.9)]">
       <table className="w-full min-w-[720px] text-left text-sm">
         <thead className="border-b border-border bg-muted text-xs uppercase tracking-widest text-muted-foreground">
           <tr>

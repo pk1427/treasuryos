@@ -22,7 +22,7 @@ export function StressScenarioCard({ result }: { result: StressResult }) {
     loss >= 0.5 ? "critical" : loss >= 0.3 ? "high" : loss >= 0.15 ? "medium" : "low";
 
   return (
-    <div className="rounded-xl border border-border privacy-card p-4">
+    <div className="rounded-xl bg-background/45 p-4">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-foreground">
           {scenarioLabel(result.scenario)}
